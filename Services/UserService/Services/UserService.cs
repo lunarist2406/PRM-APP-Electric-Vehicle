@@ -1,36 +1,42 @@
-﻿using UserService.Models;
-using UserService.Repositories;
+using MongoDB.Driver;
+using BCrypt.Net;
+using UserService.Data;
+using UserService.Models;
 
 namespace UserService.Services
 {
-    public class UserService : IUserService
+    public class UserService
     {
-        private readonly IUserRepository _repo;
+        private readonly MongoDbContext _context;
 
-        public UserService(IUserRepository repo)
+        public UserService(MongoDbContext context)
         {
-            _repo = repo;
+            _context = context;
         }
 
-        public async Task<IEnumerable<User>> GetAllAsync()
-            => await _repo.GetAllAsync();
-
-        public async Task<User?> GetByIdAsync(int id)
-            => await _repo.GetByIdAsync(id);
-
-        public async Task<User> RegisterAsync(User user)
+        public async Task<User> CreateUser(string name, string email, string password, string role)
         {
-            // Simple hash giả lập
-            user.Password = BCrypt.Net.BCrypt.HashPassword(user.Password);
-            return await _repo.AddAsync(user);
+            var hashed = BCrypt.Net.BCrypt.HashPassword(password);
+            var user = new User { Name = name, Email = email, Password = hashed, Role = role };
+            await _context.Users.InsertOneAsync(user);
+            return user;
         }
 
-        public async Task<User?> LoginAsync(string email, string password)
+        public async Task<User> GetByEmail(string email)
         {
-            var existing = await _repo.GetByEmailAsync(email);
-            if (existing == null) return null;
+            return await _context.Users.Find(u => u.Email == email).FirstOrDefaultAsync();
+        }
 
-            return BCrypt.Net.BCrypt.Verify(password, existing.Password) ? existing : null;
+        public async Task<bool> ValidateUser(string email, string password)
+        {
+            var user = await GetByEmail(email);
+            if (user == null) return false;
+            return BCrypt.Net.BCrypt.Verify(password, user.Password);
+        }
+
+        public async Task<List<User>> GetAllUsers()
+        {
+            return await _context.Users.Find(_ => true).ToListAsync();
         }
     }
 }

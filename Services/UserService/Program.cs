@@ -1,23 +1,33 @@
-﻿using Microsoft.EntityFrameworkCore;
-using Microsoft.OpenApi.Models;
-using UserService.Data;
-using UserService.Repositories;
+﻿using UserService.Data;
 using UserService.Services;
-
+using UserService.Utils;
+using Microsoft.OpenApi.Models;   // Cho SwaggerDoc
 var builder = WebApplication.CreateBuilder(args);
 
-// 1️⃣ Add DbContext
-builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlite("Data Source=UserDb.db"));
+// MongoDB DI
+builder.Services.AddSingleton<MongoDbContext>();
+builder.Services.AddScoped<UserService.Services.UserService>(); 
+builder.Services.AddScoped<JwtService>();
 
-// 2️⃣ Add Repository & Service
-builder.Services.AddScoped<IUserRepository, UserRepository>();
-builder.Services.AddScoped<IUserService, UserService.Services.UserService>();
+// JWT Authentication
+builder.Services.AddAuthentication(Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = builder.Configuration["JWT_ISSUER"],
+            ValidAudience = builder.Configuration["JWT_AUDIENCE"],
+            IssuerSigningKey = new Microsoft.IdentityModel.Tokens.SymmetricSecurityKey(
+                System.Text.Encoding.UTF8.GetBytes(builder.Configuration["JWT_SECRET"]!)) // dấu ! để loại bỏ cảnh báo null
+        };
+    });
 
-// 3️⃣ Add Controllers
+// Add controllers + Swagger
 builder.Services.AddControllers();
-
-// 4️⃣ Add Swagger
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -26,22 +36,17 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
-// 5️⃣ Swagger UI
+// Swagger middleware
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI(c =>
     {
         c.SwaggerEndpoint("/swagger/v1/swagger.json", "UserService API V1");
+        c.RoutePrefix = string.Empty; // Truy cập http://localhost:5080 là thấy Swagger UI
     });
 }
-
-// 6️⃣ HTTPS + Authorization
-//app.UseHttpsRedirection();
+app.UseAuthentication();
 app.UseAuthorization();
-
-// 7️⃣ Map Controllers
 app.MapControllers();
-
-// 8️⃣ Run app
 app.Run();
