@@ -36,6 +36,8 @@ namespace UserService.Controllers
             if (!valid) return Unauthorized("Email or password incorrect");
 
             var user = await _userService.GetByEmail(dto.Email);
+            if (user == null) return Unauthorized("User not found");
+
             var token = _jwtService.GenerateToken(user);
 
             return Ok(new
