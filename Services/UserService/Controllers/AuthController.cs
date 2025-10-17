@@ -25,8 +25,8 @@ namespace UserService.Controllers
             var existing = await _userService.GetByEmail(dto.Email);
             if (existing != null) return BadRequest("Email already exists");
 
-            var user = await _userService.CreateUser(dto.Name, dto.Email, dto.Password, dto.Role);
-            return Ok(new { user.Id, user.Name, user.Email, user.Role });
+            var user = await _userService.CreateUser(dto.Name, dto.Email, dto.Password);
+            return Ok(user);
         }
 
         [HttpPost("login")]

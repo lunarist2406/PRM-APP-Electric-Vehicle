@@ -1,5 +1,6 @@
 ﻿using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
+using UserService.Models.Enums;
 
 namespace UserService.Models
 {
@@ -19,6 +20,6 @@ namespace UserService.Models
         public string Password { get; set; } = string.Empty;
 
         [BsonElement("role")]
-        public string Role { get; set; } = string.Empty; // normal, staff, admin
+        public UserRole Role { get; set; } = UserRole.Driver;
     }
 }

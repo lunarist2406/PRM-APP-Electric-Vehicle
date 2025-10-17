@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using UserService.Models;
 using UserService.Services;
 using UserService.Models.DTOs;
@@ -33,12 +33,30 @@ namespace UserService.Controllers
         [HttpPost]
         public async Task<IActionResult> Create([FromBody] User newUser)
         {
-            var existing = await _userService.GetByEmail(newUser.Email);
-            if (existing != null) return BadRequest("Email already exists");
+            if (newUser == null)
+                return BadRequest("Invalid user data");
 
-            var user = await _userService.CreateUser(newUser.Name, newUser.Email, newUser.Password, newUser.Role);
-            return CreatedAtAction(nameof(GetById), new { id = user.Id }, new { user.Id, user.Name, user.Email, user.Role });
+            var existing = await _userService.GetByEmail(newUser.Email);
+            if (existing != null)
+                return BadRequest("Email already exists");
+
+            // ✅ Gọi đúng hàm CreateUser có 3 tham số
+            var createdUser = await _userService.CreateUser(
+                newUser.Name,
+                newUser.Email,
+                newUser.Password
+            );
+
+            return CreatedAtAction(nameof(GetById), new { id = createdUser.Id },
+                new
+                {
+                    createdUser.Id,
+                    createdUser.Name,
+                    createdUser.Email,
+                    createdUser.Role
+                });
         }
+
 
         [HttpPut("{id}")]
         public async Task<IActionResult> Update(string id, [FromBody] UpdateUserDto updatedUser)

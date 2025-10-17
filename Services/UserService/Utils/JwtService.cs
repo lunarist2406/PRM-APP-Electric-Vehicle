@@ -21,13 +21,16 @@ namespace UserService.Utils
 
             var claims = new[]
             {
-        new Claim(ClaimTypes.NameIdentifier, user.Id ?? ""),
-        new Claim(ClaimTypes.Email, user.Email ?? ""),
-        new Claim(ClaimTypes.Role, user.Role ?? "")
-    };
+                new Claim(ClaimTypes.NameIdentifier, user.Id ?? string.Empty),
+                new Claim(ClaimTypes.Email, user.Email ?? string.Empty),
+                new Claim(ClaimTypes.Role, user.Role.ToString()) 
+            };
 
-            var secret = _config["JWT_SECRET"] ?? throw new ArgumentNullException("JWT_SECRET not configured");
-            if (secret.Length < 32) throw new ArgumentException("JWT_SECRET must be at least 32 chars for HS256");
+            var secret = _config["JWT_SECRET"]
+                ?? throw new ArgumentNullException("JWT_SECRET not configured");
+
+            if (secret.Length < 32)
+                throw new ArgumentException("JWT_SECRET must be at least 32 chars for HS256");
 
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
@@ -42,6 +45,5 @@ namespace UserService.Utils
 
             return new JwtSecurityTokenHandler().WriteToken(token);
         }
-
     }
 }

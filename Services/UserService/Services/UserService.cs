@@ -2,6 +2,7 @@
 using BCrypt.Net;
 using UserService.Data;
 using UserService.Models;
+using UserService.Models.Enums;
 
 namespace UserService.Services
 {
@@ -13,14 +14,20 @@ namespace UserService.Services
         {
             _context = context;
         }
-
-        public async Task<User> CreateUser(string name, string email, string password, string role)
+        public async Task<User> CreateUser(string name, string email, string password)
         {
             var hashed = BCrypt.Net.BCrypt.HashPassword(password);
-            var user = new User { Name = name, Email = email, Password = hashed, Role = role };
+            var user = new User
+            {
+                Name = name,
+                Email = email,
+                Password = hashed,
+                Role = UserRole.Driver 
+            };
             await _context.Users.InsertOneAsync(user);
             return user;
         }
+
 
         public async Task<User?> GetByEmail(string email)
         {
@@ -49,9 +56,10 @@ namespace UserService.Services
             var update = Builders<User>.Update
                 .Set(u => u.Name, name)
                 .Set(u => u.Email, email)
-                .Set(u => u.Role, role);
+                .Set(u => u.Role, Enum.Parse<UserRole>(role, true)); // parse string to enum
 
-            var result = await _context.Users.UpdateOneAsync(u => u.Id == id, update);
+            var filter = Builders<User>.Filter.Eq(u => u.Id, id); // ✅ fix
+            var result = await _context.Users.UpdateOneAsync(filter, update);
             return result.ModifiedCount > 0;
         }
         public async Task<bool> UpdateProfile(string id, string name, string email, string password)
