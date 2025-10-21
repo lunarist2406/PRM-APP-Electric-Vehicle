@@ -10,7 +10,6 @@ namespace UserService.Controllers
     public class AuthController : ControllerBase
     {
         private readonly UserService.Services.UserService _userService;
-
         private readonly JwtService _jwtService;
 
         public AuthController(UserService.Services.UserService userService, JwtService jwtService)
@@ -25,7 +24,7 @@ namespace UserService.Controllers
             var existing = await _userService.GetByEmail(dto.Email);
             if (existing != null) return BadRequest("Email already exists");
 
-            var user = await _userService.CreateUser(dto.Name, dto.Email, dto.Password);
+            var user = await _userService.CreateUser(dto.Name, dto.Email,dto.Phone, dto.Password);
             return Ok(user);
         }
 
@@ -39,19 +38,46 @@ namespace UserService.Controllers
             if (user == null) return Unauthorized("User not found");
 
             var token = _jwtService.GenerateToken(user);
+            var refreshToken = _userService.GenerateRefreshToken();
+
+            await _userService.UpdateRefreshToken(user.Id, refreshToken, DateTime.UtcNow.AddDays(7));
 
             return Ok(new
             {
                 token,
-                user = new
-                {
-                    user.Id,
-                    user.Name,
-                    user.Email,
-                    user.Role
-                }
+                refreshToken,
+                user = new { user.Id, user.Name, user.Email, user.Role }
             });
         }
 
+
+        [HttpPost("refresh")]
+        public async Task<IActionResult> Refresh([FromBody] RefreshDto dto)
+        {
+            var user = await _userService.GetByRefreshToken(dto.RefreshToken);
+            if (user == null || user.RefreshTokenExpiry < DateTime.UtcNow)
+                return BadRequest(new { message = "Invalid or expired refresh token" });
+
+            var newAccessToken = _jwtService.GenerateToken(user);
+            var newRefreshToken = _userService.GenerateRefreshToken();
+
+            await _userService.UpdateRefreshToken(user.Id, newRefreshToken, DateTime.UtcNow.AddDays(7));
+
+            return Ok(new
+            {
+                token = newAccessToken,
+                accountId = user.Id,
+                role = user.Role.ToString()
+            });
+        }
+
+        [HttpPost("logout")]
+        public async Task<IActionResult> Logout([FromBody] LogoutDto dto)
+        {
+            var success = await _userService.Logout(dto.Email);
+            if (!success) return BadRequest(new { message = "Invalid email" });
+
+            return Ok(new { message = "Logout successful" });
+        }
     }
 }

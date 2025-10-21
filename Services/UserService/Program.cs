@@ -1,19 +1,27 @@
-﻿using UserService.Data;
-using UserService.Services;
-using UserService.Utils;
+﻿using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.IdentityModel.Logging;
 using Microsoft.OpenApi.Models;
 using MongoDB.Driver;
+using System.Text;
+using UserService.Data;
+using UserService.Services;
+using UserService.Utils;
+using UserService.Swagger;
+
+// ⚠️ Bật log chi tiết JWT
+IdentityModelEventSource.ShowPII = true;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // ==========================
-// 🧩  MongoDB DI + Connection check
+// 🧩 MongoDB DI + Connection check
 // ==========================
 builder.Services.AddSingleton<MongoDbContext>();
 builder.Services.AddScoped<UserService.Services.UserService>();
 builder.Services.AddScoped<JwtService>();
 
-// Check MongoDB connection on startup
+// Test MongoDB connection
 try
 {
     var mongoUri = builder.Configuration["MONGO_URI"];
@@ -28,10 +36,7 @@ try
     Console.ResetColor();
 
     Console.WriteLine("📚 Available databases:");
-    foreach (var db in dbList)
-    {
-        Console.WriteLine($"   - {db}");
-    }
+    foreach (var db in dbList) Console.WriteLine($"   - {db}");
 }
 catch (Exception ex)
 {
@@ -41,21 +46,53 @@ catch (Exception ex)
 }
 
 // ==========================
-// 🔐 JWT Authentication
+// 🔐 JWT Authentication (HS256)
 // ==========================
-builder.Services.AddAuthentication(Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerDefaults.AuthenticationScheme)
+builder.Services
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
-        options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
+        options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
             ValidateAudience = true,
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(
+                Encoding.UTF8.GetBytes(builder.Configuration["JWT_SECRET"]!)),
             ValidIssuer = builder.Configuration["JWT_ISSUER"],
             ValidAudience = builder.Configuration["JWT_AUDIENCE"],
-            IssuerSigningKey = new Microsoft.IdentityModel.Tokens.SymmetricSecurityKey(
-                System.Text.Encoding.UTF8.GetBytes(builder.Configuration["JWT_SECRET"]!))
+            ClockSkew = TimeSpan.Zero
+        };
+
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var authHeader = context.Request.Headers["Authorization"].FirstOrDefault();
+                if (!string.IsNullOrEmpty(authHeader) && authHeader.StartsWith("Bearer "))
+                {
+                    context.Token = authHeader.Substring("Bearer ".Length).Trim();
+                    Console.WriteLine($"➡️ Incoming token (trimmed Bearer): {context.Token}");
+                }
+                return Task.CompletedTask;
+            },
+            OnAuthenticationFailed = context =>
+            {
+                Console.WriteLine("❌ Authentication failed:");
+                Console.WriteLine(context.Exception.GetType().FullName);
+                Console.WriteLine(context.Exception.Message);
+                if (context.Exception.InnerException != null)
+                    Console.WriteLine("Inner: " + context.Exception.InnerException.Message);
+                return Task.CompletedTask;
+            },
+            OnTokenValidated = context =>
+            {
+                Console.WriteLine("✅ Token validated!");
+                foreach (var c in context.Principal.Claims)
+                    Console.WriteLine($"Claim: {c.Type} = {c.Value}");
+                return Task.CompletedTask;
+            }
         };
     });
 
@@ -72,13 +109,36 @@ builder.Services.AddSwaggerGen(c =>
         Version = "v1",
         Description = "API for User Management with MongoDB + JWT Authentication"
     });
+
+    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Type = SecuritySchemeType.Http,
+        Scheme = "Bearer",
+        BearerFormat = "JWT",
+        In = ParameterLocation.Header,
+        Description = "Nhập JWT token: Bearer {token}"
+    });
+
+    c.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" }
+            },
+            new string[] {}
+        }
+    });
+
+    c.EnableAnnotations();
+    c.SchemaFilter<RegisterDtoExampleSchemaFilter>();
+    c.SchemaFilter<LoginDtoExampleSchemaFilter>();
 });
 
 var app = builder.Build();
 
-// ==========================
-// 🌐 Middleware
-// ==========================
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -89,9 +149,28 @@ if (app.Environment.IsDevelopment())
     });
 }
 
-app.UseAuthentication();
+app.UseAuthentication(); // ⚠️ phải trước Authorization
+
+// 🔍 Debug middleware token + claims
+app.Use(async (context, next) =>
+{
+    var authHeader = context.Request.Headers["Authorization"].FirstOrDefault();
+    Console.WriteLine($"➡️ Incoming token header: {authHeader}");
+
+    if (context.User.Identity?.IsAuthenticated == true)
+    {
+        Console.WriteLine("✅ Authenticated User Claims:");
+        foreach (var c in context.User.Claims)
+            Console.WriteLine($"Type: {c.Type}, Value: {c.Value}");
+    }
+    else
+    {
+        Console.WriteLine("❌ User not authenticated");
+    }
+
+    await next.Invoke();
+});
+
 app.UseAuthorization();
-
 app.MapControllers();
-
 app.Run();
