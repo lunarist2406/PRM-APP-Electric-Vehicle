@@ -11,7 +11,7 @@
 			],
 			"UpstreamPathTemplate": "/users/{everything}",
 			"UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ],
-			"SwaggerKey": "UserService" // 🔥 phải thêm dòng này
+			"SwaggerKey": "UserService" 
 
 		},
 		{
