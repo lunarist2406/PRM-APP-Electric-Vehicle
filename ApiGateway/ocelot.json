@@ -1,7 +1,7 @@
-{
+﻿{
 	"Routes": [
 		{
-			"DownstreamPathTemplate": "/api/users/{everything}",
+			"DownstreamPathTemplate": "/api/User/{everything}",
 			"DownstreamScheme": "http",
 			"DownstreamHostAndPorts": [
 				{
@@ -10,10 +10,12 @@
 				}
 			],
 			"UpstreamPathTemplate": "/users/{everything}",
-			"UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ]
+			"UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ],
+			"SwaggerKey": "UserService" // 🔥 phải thêm dòng này
+
 		},
 		{
-			"DownstreamPathTemplate": "/api/vehicles/{everything}",
+			"DownstreamPathTemplate": "/api/Vehicle/{everything}",
 			"DownstreamScheme": "http",
 			"DownstreamHostAndPorts": [
 				{
