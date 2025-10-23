@@ -21,8 +21,9 @@ WORKDIR /app
 # Copy publish folder from build stage
 COPY --from=build /app/publish ./
 
-# Expose port
-EXPOSE 5003  # bạn có thể đổi theo port CompanyService
+# Expose port (comment trên dòng riêng)
+# bạn có thể đổi theo port CompanyService
+EXPOSE 5003
 
 # ENTRYPOINT
 ENTRYPOINT ["dotnet", "CompanyService.dll"]
