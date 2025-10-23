@@ -123,7 +123,7 @@ namespace UserService.Services
         public async Task<bool> BanUser(string id)
         {
             var result = await _context.Users.UpdateOneAsync(
-                u => u.Id == id,
+                u => u.Id == id,    
                 Builders<User>.Update.Set(u => u.IsActive, false)
             );
             return result.ModifiedCount > 0;
