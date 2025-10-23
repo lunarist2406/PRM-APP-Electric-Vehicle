@@ -146,7 +146,6 @@ app.UseSwaggerUI(c =>
     c.RoutePrefix = string.Empty;
 });
 
-
 app.UseAuthentication(); // ⚠️ phải trước Authorization
 
 // 🔍 Debug middleware token + claims
