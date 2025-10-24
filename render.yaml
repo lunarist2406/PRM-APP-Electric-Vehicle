@@ -1,0 +1,59 @@
+﻿services:
+  # 👤 USER SERVICE
+  - type: web
+    name: prm-user-service
+    runtime: docker
+    rootDir: Services/UserService
+    plan: free
+    autoDeploy: true
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: MONGO_URI
+        sync: false        # 🧠 Không commit key thật vào repo
+      - key: MONGO_DB_NAME
+        value: ev_user
+      - key: JWT_SECRET
+        sync: false
+      - key: JWT_ISSUER
+        value: UserService
+      - key: JWT_AUDIENCE
+        value: UserServiceClient
+
+  # 🏢 COMPANY SERVICE
+  - type: web
+    name: prm-company-service
+    runtime: docker
+    rootDir: Services/CompanyService
+    plan: free
+    autoDeploy: true
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: MONGO_URI
+        sync: false
+      - key: MONGO_DB_NAME
+        value: ev_company
+      - key: JWT_SECRET
+        sync: false
+      - key: JWT_ISSUER
+        value: CompanyService
+      - key: JWT_AUDIENCE
+        value: CompanyServiceClient
+      - key: USER_SERVICE_URL
+        value: https://prm-user-service.onrender.com
+
+  # 🚪 API GATEWAY
+  - type: web
+    name: prm-gateway
+    runtime: docker
+    rootDir: ApiGateway
+    plan: free
+    autoDeploy: true
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: USERSERVICE_URL
+        value: https://prm-user-service.onrender.com
+      - key: COMPANYSERVICE_URL
+        value: https://prm-company-service.onrender.com
