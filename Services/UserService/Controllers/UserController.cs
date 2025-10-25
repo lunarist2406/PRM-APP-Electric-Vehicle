@@ -17,14 +17,14 @@ namespace UserService.Controllers
         {
             _userService = userService;
         }
-        [Authorize(Roles = "Admin")]
+        [Authorize]
         [HttpGet]
         public async Task<IActionResult> GetAll()
         {
             var users = await _userService.GetAllUsers();
             return Ok(users.Select(u => new { u.Id, u.Name, u.Email, u.Phone , u.Role }));
         }
-        [Authorize(Roles = "Admin")]
+        [Authorize]
         [HttpGet("{id}")]
         public async Task<IActionResult> GetById(string id)
         {
