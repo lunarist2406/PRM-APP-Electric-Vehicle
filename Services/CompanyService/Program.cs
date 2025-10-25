@@ -4,19 +4,8 @@ using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using CompanyService.Data;
 using CompanyService.Services;
-using DotNetEnv;
 using CompanyService.Swagger;
-
 var builder = WebApplication.CreateBuilder(args);
-
-// ==========================
-// 🌍 Load ENV
-// ==========================
-DotNetEnv.Env.Load();
-
-// ==========================
-// 🔐 JWT Config
-// ==========================
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -35,19 +24,10 @@ builder.Services
         };
     });
 
-// ✅ Bắt buộc để trước khi build app
 builder.Services.AddAuthorization();
-
-// ✅ Add Controllers
 builder.Services.AddControllers();
-
-// ✅ MongoDB & Service DI setup
-builder.Services.AddSingleton<MongoDbContext>();  // giữ connection lâu dài
-builder.Services.AddScoped<CompanyDataService>(); // service mới mỗi request
-
-// ==========================
-// 🚀 Swagger Config
-// ==========================
+builder.Services.AddSingleton<MongoDbContext>(); 
+builder.Services.AddScoped<CompanyDataService>();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -86,11 +66,6 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 var app = builder.Build();
-
-// ==========================
-// 🔥 Middleware
-// ==========================
-
 app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
