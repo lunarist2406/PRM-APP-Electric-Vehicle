@@ -6,7 +6,7 @@ using MongoDB.Driver;
 using System.Text;
 using UserService.Data;
 using UserService.Services;
-using UserService.Utils;
+using UserService.Utils; // <- thêm dòng này để dùng CorsSetup
 using UserService.Swagger;
 
 // ⚠️ Bật log chi tiết JWT
@@ -44,6 +44,15 @@ catch (Exception ex)
     Console.WriteLine($"❌ MongoDB connection failed: {ex.Message}");
     Console.ResetColor();
 }
+
+// ==========================
+// ⚡ Bật CORS
+// ==========================
+builder.Services.AddCustomCors(new string[]
+{
+    "http://localhost:5000",          // local dev
+    "https://your-deploy-domain.com"  // deploy domain
+});
 
 // ==========================
 // 🔐 JWT Authentication (HS256)
@@ -138,14 +147,10 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
-
-app.UseSwagger();
-app.UseSwaggerUI(c =>
-{
-    c.SwaggerEndpoint("/swagger/v1/swagger.json", "UserService API V1");
-    c.RoutePrefix = string.Empty;
-});
-
+// ==========================
+// 🌍 Middleware CORS + Auth
+// ==========================
+app.UseCustomCors(); // <- bật CORS đầu tiên
 app.UseAuthentication(); // ⚠️ phải trước Authorization
 
 // 🔍 Debug middleware token + claims
@@ -169,5 +174,13 @@ app.Use(async (context, next) =>
 });
 
 app.UseAuthorization();
+
+app.UseSwagger();
+app.UseSwaggerUI(c =>
+{
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "UserService API V1");
+    c.RoutePrefix = string.Empty;
+});
+
 app.MapControllers();
 app.Run();

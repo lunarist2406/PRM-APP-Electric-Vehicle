@@ -5,15 +5,25 @@ using System.Text;
 using VehicleService.Data;
 using VehicleService.Services;
 using VehicleService.Swagger;
-using DotNetEnv; // 🧠 thêm package DotNetEnv
+using DotNetEnv;
+using VehicleService.Utils; // <- thêm dòng này để dùng CorsSetup
 
 var builder = WebApplication.CreateBuilder(args);
 
 // ==========================
 // 🌍 Load ENV + Config
 // ==========================
-Env.Load(); // load .env
+Env.Load();
 var config = builder.Configuration;
+
+// ==========================
+// ⚡ Bật CORS
+// ==========================
+builder.Services.AddCustomCors(new string[]
+{
+    "http://localhost:5000",          // local dev
+    "https://your-deploy-domain.com"  // deploy domain
+});
 
 // ==========================
 // 🔐 JWT Auth Setup
@@ -40,16 +50,15 @@ builder.Services
 // 🧩 MongoDB + DI
 // ==========================
 builder.Services.AddSingleton<MongoDbContext>();
-builder.Services.AddHttpContextAccessor(); // để service có thể lấy HttpContext
+builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<VehicleDataService>();
-builder.Services.AddHttpClient(); // thêm HttpClientFactory
+builder.Services.AddHttpClient();
 
 // ==========================
 // 🚀 Controllers + Swagger
 // ==========================
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo
@@ -59,7 +68,6 @@ builder.Services.AddSwaggerGen(c =>
         Description = "API for Vehicle Management (MongoDB + JWT Auth)"
     });
 
-    // JWT Auth for Swagger
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Name = "Authorization",
@@ -96,6 +104,10 @@ var app = builder.Build();
 // ==========================
 // 🌍 Middleware
 // ==========================
+app.UseCustomCors(); // <- bật CORS trước Authentication
+app.UseAuthentication();
+app.UseAuthorization();
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -106,9 +118,5 @@ if (app.Environment.IsDevelopment())
     });
 }
 
-app.UseAuthentication();
-app.UseAuthorization();
-
 app.MapControllers();
-
 app.Run();
