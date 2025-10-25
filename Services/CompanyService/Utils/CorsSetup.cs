@@ -1,24 +1,24 @@
 ﻿using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace VehicleService
+namespace CompanyService.Utils
 {
     public static class CorsSetup
     {
         private const string CorsPolicyName = "AllowLocalAndDeploy";
 
         // ⚡ Thêm service CORS
-        public static IServiceCollection AddCustomCors(this IServiceCollection services, string[] allowedOrigins)
+        public static IServiceCollection AddCustomCors(this IServiceCollection services)
         {
             services.AddCors(options =>
             {
                 options.AddPolicy(CorsPolicyName, policy =>
                 {
                     policy
-                        .WithOrigins(allowedOrigins) // các domain được phép
+                        .AllowAnyOrigin()    // ✅ cho mọi domain
                         .AllowAnyHeader()
-                        .AllowAnyMethod()
-                        .AllowCredentials();
+                        .AllowAnyMethod();
+                    // .AllowCredentials(); <-- ⚠️ Không dùng AllowCredentials với AllowAnyOrigin
                 });
             });
             return services;
