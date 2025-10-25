@@ -19,11 +19,7 @@ var config = builder.Configuration;
 // ==========================
 // ⚡ Bật CORS
 // ==========================
-builder.Services.AddCustomCors(new string[]
-{
-    "http://localhost:5000",          // local dev
-    "https://your-deploy-domain.com"  // deploy domain
-});
+app.UseCustomCors();
 
 // ==========================
 // 🔐 JWT Auth Setup

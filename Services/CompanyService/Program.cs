@@ -12,11 +12,8 @@ var builder = WebApplication.CreateBuilder(args);
 // ==========================
 // ⚡ Bật CORS
 // ==========================
-builder.Services.AddCustomCors(new string[]
-{
-    "http://localhost:5000",          // local dev
-    "https://your-deploy-domain.com"  // deploy domain
-});
+builder.Services.AddCustomCors(); // giờ không cần truyền mảng domain
+
 
 // ==========================
 // 🔐 JWT Authentication
