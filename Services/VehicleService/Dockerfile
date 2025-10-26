@@ -18,5 +18,5 @@ RUN dotnet publish -c Release -o /app/publish
 FROM mcr.microsoft.com/dotnet/aspnet:9.0
 WORKDIR /app
 COPY --from=build /app/publish .
-EXPOSE 5002
-ENTRYPOINT ["dotnet", "UserService.dll"]
+EXPOSE 5003
+ENTRYPOINT ["dotnet", "VehicleService.dll"]
