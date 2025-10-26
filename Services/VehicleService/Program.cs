@@ -19,7 +19,6 @@ var config = builder.Configuration;
 // ==========================
 // ⚡ Bật CORS
 // ==========================
-app.UseCustomCors();
 
 // ==========================
 // 🔐 JWT Auth Setup
@@ -104,15 +103,13 @@ app.UseCustomCors(); // <- bật CORS trước Authentication
 app.UseAuthentication();
 app.UseAuthorization();
 
-if (app.Environment.IsDevelopment())
-{
+
     app.UseSwagger();
     app.UseSwaggerUI(c =>
     {
         c.SwaggerEndpoint("/swagger/v1/swagger.json", "VehicleService API V1");
         c.RoutePrefix = string.Empty;
     });
-}
 
 app.MapControllers();
 app.Run();

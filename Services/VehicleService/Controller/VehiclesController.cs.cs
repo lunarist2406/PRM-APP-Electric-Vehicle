@@ -75,23 +75,57 @@ namespace VehicleService.Controllers
 		[Authorize]
 		public async Task<IActionResult> Create([FromBody] VehicleDto dto)
 		{
-			var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-			if (string.IsNullOrEmpty(userId))
+			var userIdFromToken = User.FindFirstValue(ClaimTypes.NameIdentifier);
+			if (string.IsNullOrEmpty(userIdFromToken))
 				return Unauthorized(new { message = "Access token required" });
 
-			var userValid = await _vehicleService.VerifyUserAsync(userId);
-			if (!userValid) return BadRequest(new { message = "User not found in UserService" });
+			string? targetUserId = null;
+			string? targetCompanyId = null;
 
+			// ✅ Check user_id từ DTO trước
+			if (!string.IsNullOrEmpty(dto.UserId))
+			{
+				var userValid = await _vehicleService.VerifyUserAsync(dto.UserId);
+				if (userValid)
+				{
+					targetUserId = dto.UserId;
+				}
+				else
+				{
+					// Nếu user không tồn tại, targetUserId = null
+					Console.WriteLine($"[Create] User {dto.UserId} not found, setting null");
+				}
+			}
+
+			// Nếu DTO không có userId, fallback sang token
+			if (targetUserId == null)
+			{
+				var tokenUserValid = await _vehicleService.VerifyUserAsync(userIdFromToken);
+				if (tokenUserValid)
+					targetUserId = userIdFromToken;
+				else
+					targetUserId = null; // token cũng invalid -> để null
+			}
+
+			// ✅ Check company_id từ DTO
 			if (!string.IsNullOrEmpty(dto.CompanyId))
 			{
 				var companyValid = await _vehicleService.VerifyCompanyAsync(dto.CompanyId);
-				if (!companyValid) return BadRequest(new { message = "Company not found in CompanyService" });
+				if (companyValid)
+				{
+					targetCompanyId = dto.CompanyId;
+				}
+				else
+				{
+					Console.WriteLine($"[Create] Company {dto.CompanyId} not found, setting null");
+					targetCompanyId = null;
+				}
 			}
 
 			var vehicle = new Vehicle
 			{
-				UserId = dto.UserId ?? userId,
-				CompanyId = dto.CompanyId,
+				UserId = targetUserId,
+				CompanyId = targetCompanyId,
 				PlateNumber = dto.PlateNumber,
 				Model = dto.Model,
 				BatteryCapacity = dto.BatteryCapacity,
@@ -100,27 +134,43 @@ namespace VehicleService.Controllers
 			};
 
 			await _vehicleService.CreateAsync(vehicle);
+
 			return CreatedAtAction(nameof(GetById), new { id = vehicle.Id }, vehicle);
 		}
+
+
+
 
 		[HttpPut("{id}")]
 		[Authorize]
 		public async Task<IActionResult> Update(string id, [FromBody] VehicleDto dto)
 		{
 			var existing = await _vehicleService.GetByIdAsync(id);
-			if (existing == null) return NotFound(new { message = "Vehicle not found" });
+			if (existing == null)
+				return NotFound(new { message = "Vehicle not found" });
+
+			// ✅ Chỉ cập nhật UserId nếu DTO có, không fallback token
+			existing.UserId = !string.IsNullOrEmpty(dto.UserId)
+				? dto.UserId
+				: null;
+
+			// ✅ Chỉ cập nhật CompanyId nếu DTO có, không fallback token
+			existing.CompanyId = !string.IsNullOrEmpty(dto.CompanyId)
+				? dto.CompanyId
+				: null;
 
 			existing.Model = dto.Model;
 			existing.PlateNumber = dto.PlateNumber;
-			existing.CompanyId = dto.CompanyId;
 			existing.BatteryCapacity = dto.BatteryCapacity;
 			existing.UpdatedAt = DateTime.UtcNow;
 
 			var success = await _vehicleService.UpdateAsync(id, existing);
-			if (!success) return StatusCode(500, new { message = "Failed to update vehicle" });
+			if (!success)
+				return StatusCode(500, new { message = "Failed to update vehicle" });
 
 			return Ok(existing);
 		}
+
 
 		[HttpDelete("{id}")]
 		[Authorize]
