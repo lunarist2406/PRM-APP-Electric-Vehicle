@@ -3,6 +3,7 @@ using VehicleService.Models;
 using VehicleService.Data;
 using System.Net.Http.Headers;
 using Microsoft.AspNetCore.Http;
+using MongoDB.Bson;
 
 namespace VehicleService.Services
 {
@@ -78,17 +79,26 @@ namespace VehicleService.Services
                 return false;
             }
 
+            Console.WriteLine($"[VerifyUserAsync] Attempting to verify userId='{userId}' with token='{token.Substring(0, Math.Min(token.Length, 10))}...'");
+
             try
             {
-                var request = new HttpRequestMessage(HttpMethod.Get, $"{_userServiceUrl}/api/User/{userId}");
+                string endpointId = userId;
+
+                if (ObjectId.TryParse(userId, out var objId))
+                {
+                    endpointId = objId.ToString();
+                    Console.WriteLine($"[VerifyUserAsync] Parsed userId to ObjectId='{endpointId}'");
+                }
+
+                var request = new HttpRequestMessage(HttpMethod.Get, $"{_userServiceUrl}/api/User/{endpointId}");
                 request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+                Console.WriteLine($"[VerifyUserAsync] Sending GET request to '{_userServiceUrl}/api/User/{endpointId}'");
 
                 var response = await _httpClient.SendAsync(request);
 
-                Console.WriteLine($"[VerifyUserAsync] Requesting UserService for userId={userId}");
-                Console.WriteLine($"[VerifyUserAsync] Token used: {token.Substring(0, Math.Min(token.Length, 10))}...");
-                Console.WriteLine($"[VerifyUserAsync] StatusCode: {response.StatusCode}");
-
+                Console.WriteLine($"[VerifyUserAsync] Response StatusCode: {response.StatusCode}");
                 if (!response.IsSuccessStatusCode)
                 {
                     var body = await response.Content.ReadAsStringAsync();
@@ -113,17 +123,26 @@ namespace VehicleService.Services
                 return false;
             }
 
+            Console.WriteLine($"[VerifyCompanyAsync] Attempting to verify companyId='{companyId}' with token='{token.Substring(0, Math.Min(token.Length, 10))}...'");
+
             try
             {
-                var request = new HttpRequestMessage(HttpMethod.Get, $"{_companyServiceUrl}/api/Companies/{companyId}");
+                string endpointId = companyId;
+
+                if (ObjectId.TryParse(companyId, out var objId))
+                {
+                    endpointId = objId.ToString();
+                    Console.WriteLine($"[VerifyCompanyAsync] Parsed companyId to ObjectId='{endpointId}'");
+                }
+
+                var request = new HttpRequestMessage(HttpMethod.Get, $"{_companyServiceUrl}/api/Companies/{endpointId}");
                 request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+                Console.WriteLine($"[VerifyCompanyAsync] Sending GET request to '{_companyServiceUrl}/api/Companies/{endpointId}'");
 
                 var response = await _httpClient.SendAsync(request);
 
-                Console.WriteLine($"[VerifyCompanyAsync] Requesting CompanyService for companyId={companyId}");
-                Console.WriteLine($"[VerifyCompanyAsync] Token used: {token.Substring(0, Math.Min(token.Length, 10))}...");
-                Console.WriteLine($"[VerifyCompanyAsync] StatusCode: {response.StatusCode}");
-
+                Console.WriteLine($"[VerifyCompanyAsync] Response StatusCode: {response.StatusCode}");
                 if (!response.IsSuccessStatusCode)
                 {
                     var body = await response.Content.ReadAsStringAsync();
@@ -138,5 +157,7 @@ namespace VehicleService.Services
                 return false;
             }
         }
+
+
     }
 }

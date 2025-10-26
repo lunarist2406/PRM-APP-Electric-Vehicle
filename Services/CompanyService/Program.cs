@@ -5,7 +5,19 @@ using System.Text;
 using CompanyService.Data;
 using CompanyService.Services;
 using CompanyService.Swagger;
+using CompanyService.Utils; // <- thêm dòng này để dùng CorsSetup
+
 var builder = WebApplication.CreateBuilder(args);
+
+// ==========================
+// ⚡ Bật CORS
+// ==========================
+builder.Services.AddCustomCors(); // giờ không cần truyền mảng domain
+
+
+// ==========================
+// 🔐 JWT Authentication
+// ==========================
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -26,7 +38,7 @@ builder.Services
 
 builder.Services.AddAuthorization();
 builder.Services.AddControllers();
-builder.Services.AddSingleton<MongoDbContext>(); 
+builder.Services.AddSingleton<MongoDbContext>();
 builder.Services.AddScoped<CompanyDataService>();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
@@ -62,19 +74,28 @@ builder.Services.AddSwaggerGen(c =>
             Array.Empty<string>()
         }
     });
+
     c.SchemaFilter<RegisterCompanyDtoExampleSchemaFilter>();
 });
 
 var app = builder.Build();
+
+// ==========================
+// 🌍 Middleware CORS + Auth
+// ==========================
+app.UseCustomCors(); // <- bật CORS trước Authentication
+app.UseAuthentication();
+app.UseAuthorization();
+
+// ==========================
+// Swagger
+// ==========================
 app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
-  c.SwaggerEndpoint("/swagger/v1/swagger.json", "CompanyService API V1");
-  c.RoutePrefix = string.Empty;
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "CompanyService API V1");
+    c.RoutePrefix = string.Empty;
 });
-
-app.UseAuthentication();
-app.UseAuthorization();
 
 app.MapControllers();
 app.Run();
