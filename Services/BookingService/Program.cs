@@ -1,16 +1,19 @@
 ﻿using System.Text;
 using System.Threading.RateLimiting;
-using ChargingPointService.Data;
-using ChargingPointService.Services;
-using ChargingPointService.Utils;
+using BookingService.Data;
+using BookingService.Repositories;
+using BookingService.Services;
+using BookingService.External;
+using BookingService.Utils;
 using DotNetEnv;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
-
+using System.Text.Json;
+using System.Text.Json.Serialization;
 var builder = WebApplication.CreateBuilder(args);
 
-// 🌍 Load .env
+// 🌍 Load .env file
 Env.Load();
 builder.Configuration.AddEnvironmentVariables();
 
@@ -20,7 +23,12 @@ Console.WriteLine($"✅ MONGO_URI: {Environment.GetEnvironmentVariable("MONGO_UR
 Console.WriteLine($"✅ MONGO_DB_NAME: {Environment.GetEnvironmentVariable("MONGO_DB_NAME")}");
 Console.WriteLine($"✅ JWT_SECRET: {Environment.GetEnvironmentVariable("JWT_SECRET")}");
 Console.WriteLine($"✅ STATION_API_URL: {Environment.GetEnvironmentVariable("STATION_API_URL")}");
+Console.WriteLine($"✅ VEHICLE_API_URL: {Environment.GetEnvironmentVariable("VEHICLE_API_URL")}");
+Console.WriteLine($"✅ USER_API_URL: {Environment.GetEnvironmentVariable("USER_API_URL")}");
+Console.WriteLine($"✅ CHARGING_POINT_API_URL: {Environment.GetEnvironmentVariable("CHARGINGPOINT_API_URL")}");
 Console.WriteLine("==================================");
+
+
 // ============================================
 // 🔐 JWT Authentication
 // ============================================
@@ -54,7 +62,7 @@ builder.Services.AddRateLimiter(options =>
         var ip = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
         return RateLimitPartition.GetFixedWindowLimiter(ip, _ => new FixedWindowRateLimiterOptions
         {
-            PermitLimit = 20,
+            PermitLimit = 25,
             Window = TimeSpan.FromSeconds(10),
             QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
             QueueLimit = 0
@@ -78,28 +86,42 @@ builder.Services.AddRateLimiter(options =>
 // 📦 Dependency Injection
 // ============================================
 
-// MongoDbContext (singleton)
+// MongoDbContext
 builder.Services.AddSingleton<MongoDbContext>();
 
 // HttpClient + HttpContextAccessor
 builder.Services.AddHttpClient();
 builder.Services.AddHttpContextAccessor();
 
-// App services
-builder.Services.AddScoped<ChargingPointApiService>();
+// External clients (có gửi token)
+builder.Services.AddScoped<StationClient>();
+builder.Services.AddScoped<UserClient>();
+builder.Services.AddScoped<VehicleClient>();
+builder.Services.AddScoped<ChargingPointClient>();
+
+// Repository + Service
+// Repository + Service
+builder.Services.AddScoped<IBookingRepository, BookingRepository>();
+builder.Services.AddScoped<BookingServiceLayer>();
+
 
 // ============================================
 // 📘 Swagger
 // ============================================
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(opt =>
+    {
+        opt.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+    });
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo
     {
-        Title = "⚡ ChargingPointService API",
+        Title = "⚡ BookingService API",
         Version = "v1",
-        Description = "API quản lý trạm sạc điện (EV) có tích hợp JWT + Rate Limiting"
+        Description = "API quản lý booking (đặt lịch sạc) có JWT + Rate Limiting + External Services"
     });
 
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
@@ -126,8 +148,6 @@ builder.Services.AddSwaggerGen(c =>
             Array.Empty<string>()
         }
     });
-    c.SchemaFilter<ChargingPointService.Swagger.ChargingPointDtoExampleSchemaFilter>();
-
 });
 
 // ============================================
@@ -136,14 +156,12 @@ builder.Services.AddSwaggerGen(c =>
 var app = builder.Build();
 
 // ✅ Middleware pipeline
-
 app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
-   c.SwaggerEndpoint("/swagger/v1/swagger.json", "ChargingPointService API v1");
-   c.RoutePrefix = string.Empty;
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "BookingService API v1");
+    c.RoutePrefix = string.Empty;
 });
-
 
 app.UseCustomCors();
 app.UseRateLimiter();
