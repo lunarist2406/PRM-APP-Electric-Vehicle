@@ -32,6 +32,7 @@ artifacts/
 # ASP.NET Scaffolding
 ScaffoldingReadMe.txt
 # Environment files (should never be committed)
+.env
 # NuGet Packages
 *.nupkg
 # NuGet Symbol Packages
