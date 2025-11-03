@@ -1,6 +1,7 @@
 ﻿using System.Text;
 using System.Threading.RateLimiting;
 using BookingService.Data;
+using BookingService.Swagger;
 using BookingService.Repositories;
 using BookingService.Services;
 using BookingService.External;
@@ -13,25 +14,8 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 var builder = WebApplication.CreateBuilder(args);
 
-// 🌍 Load .env file
 Env.Load();
 builder.Configuration.AddEnvironmentVariables();
-
-Console.WriteLine("========== 🌍 ENV CHECK ==========");
-Console.WriteLine($"📁 Current Directory: {Directory.GetCurrentDirectory()}");
-Console.WriteLine($"✅ MONGO_URI: {Environment.GetEnvironmentVariable("MONGO_URI")}");
-Console.WriteLine($"✅ MONGO_DB_NAME: {Environment.GetEnvironmentVariable("MONGO_DB_NAME")}");
-Console.WriteLine($"✅ JWT_SECRET: {Environment.GetEnvironmentVariable("JWT_SECRET")}");
-Console.WriteLine($"✅ STATION_API_URL: {Environment.GetEnvironmentVariable("STATION_API_URL")}");
-Console.WriteLine($"✅ VEHICLE_API_URL: {Environment.GetEnvironmentVariable("VEHICLE_API_URL")}");
-Console.WriteLine($"✅ USER_API_URL: {Environment.GetEnvironmentVariable("USER_API_URL")}");
-Console.WriteLine($"✅ CHARGING_POINT_API_URL: {Environment.GetEnvironmentVariable("CHARGINGPOINT_API_URL")}");
-Console.WriteLine("==================================");
-
-
-// ============================================
-// 🔐 JWT Authentication
-// ============================================
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -73,7 +57,7 @@ builder.Services.AddRateLimiter(options =>
     {
         var ip = context.HttpContext.Connection.RemoteIpAddress?.ToString();
         Console.ForegroundColor = ConsoleColor.Red;
-        Console.WriteLine($"🚫 IP {ip} bị chặn vì spam quá nhanh (Rate Limit)!");
+        Console.WriteLine($"IP {ip} bị chặn vì spam quá nhanh (Rate Limit)!");
         Console.ResetColor();
         context.HttpContext.Response.Headers["Retry-After"] = "10";
         return ValueTask.CompletedTask;
@@ -82,32 +66,19 @@ builder.Services.AddRateLimiter(options =>
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 });
 
-// ============================================
-// 📦 Dependency Injection
-// ============================================
 
-// MongoDbContext
 builder.Services.AddSingleton<MongoDbContext>();
 
-// HttpClient + HttpContextAccessor
 builder.Services.AddHttpClient();
 builder.Services.AddHttpContextAccessor();
 
-// External clients (có gửi token)
 builder.Services.AddScoped<StationClient>();
 builder.Services.AddScoped<UserClient>();
 builder.Services.AddScoped<VehicleClient>();
 builder.Services.AddScoped<ChargingPointClient>();
-
-// Repository + Service
-// Repository + Service
 builder.Services.AddScoped<IBookingRepository, BookingRepository>();
 builder.Services.AddScoped<BookingServiceLayer>();
 
-
-// ============================================
-// 📘 Swagger
-// ============================================
 builder.Services.AddControllers()
     .AddJsonOptions(opt =>
     {
@@ -119,7 +90,7 @@ builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo
     {
-        Title = "⚡ BookingService API",
+        Title = "BookingService API",
         Version = "v1",
         Description = "API quản lý booking (đặt lịch sạc) có JWT + Rate Limiting + External Services"
     });
@@ -148,14 +119,12 @@ builder.Services.AddSwaggerGen(c =>
             Array.Empty<string>()
         }
     });
+    c.SchemaFilter<BookingCreateDtoExampleSchemaFilter>();
+    c.SchemaFilter<BookingUpdateDtoExampleSchemaFilter>();
 });
 
-// ============================================
-// 🚀 Build App
-// ============================================
-var app = builder.Build();
 
-// ✅ Middleware pipeline
+var app = builder.Build();
 app.UseSwagger();
 app.UseSwaggerUI(c =>
 {

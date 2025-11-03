@@ -3,7 +3,7 @@ using BookingService.Models.DTOs;
 using BookingService.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-
+using System.Security.Claims;
 namespace BookingService.Controllers
 {
     [ApiController]
@@ -90,8 +90,6 @@ namespace BookingService.Controllers
 
         // ==========================================
         // 🟡 PUT: Cập nhật booking
-        // ==========================================
-        // 🟡 PUT: Cập nhật booking
         [HttpPut("{id}")]
         public async Task<IActionResult> Update(string id, [FromBody] BookingUpdateDto dto)
         {
@@ -105,7 +103,7 @@ namespace BookingService.Controllers
 
         // ==========================================
         // 🔴 DELETE: Xoá booking
-        // ==========================================
+        [Authorize(Roles = "Admin")]
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(string id)
         {
@@ -127,7 +125,7 @@ namespace BookingService.Controllers
                 return Unauthorized(new { message = "Access token required" });
 
             // 👇 Lấy userId từ JWT claim "sub" hoặc "user_id"
-            var userId = User.FindFirst("sub")?.Value ?? User.FindFirst("user_id")?.Value;
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (string.IsNullOrEmpty(userId))
                 return BadRequest(new { message = "User ID not found in token." });
 
