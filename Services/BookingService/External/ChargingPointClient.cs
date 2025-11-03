@@ -1,5 +1,4 @@
-using System.Threading.Tasks;
-using Microsoft.Extensions.Logging;
+﻿using System.Threading.Tasks;
 using BookingService.Models.DTOs;
 
 namespace BookingService.External
@@ -11,13 +10,25 @@ namespace BookingService.External
         public ChargingPointClient(HttpClient httpClient, ILogger<ChargingPointClient> logger, IConfiguration config)
             : base(httpClient, logger)
         {
-            _baseUrl = config["CHARGINGPOINT_API_URL"] ?? "";
+            _baseUrl = config["CHARGINGPOINT_API_URL"] ?? string.Empty;
         }
 
         public async Task<ChargingPointResponseDto?> GetChargingPointByIdAsync(string id, string token)
         {
-            var url = $"{_baseUrl}/api/charging-points/{id}";
-            return await GetAsync<ChargingPointResponseDto>(url, token);
+            if (string.IsNullOrEmpty(id))
+                return null;
+
+            var url = $"{_baseUrl}/api/ChargingPoint/{id}";
+
+            try
+            {
+                var response = await GetAsync<ApiResponse<ChargingPointResponseDto>>(url, token);
+                return response?.Data;
+            }
+            catch
+            {
+                return null;
+            }
         }
     }
 }

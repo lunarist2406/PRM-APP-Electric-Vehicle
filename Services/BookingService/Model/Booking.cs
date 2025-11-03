@@ -64,7 +64,7 @@ namespace BookingService.Models
         [BsonIgnore]
         public ChargingPointResponseDto? ChargingPointInfo { get; set; }
 
-        // 🧮 Tính tiền dựa theo loại sạc
+        // Tính tiền dựa theo loại sạc và số giờ (ceil)
         public void CalculateTotalFee()
         {
             if (EndTime <= StartTime)
@@ -74,10 +74,9 @@ namespace BookingService.Models
             }
 
             var duration = EndTime - StartTime;
-            double totalHours = Math.Ceiling(duration.TotalHours < 1 ? 1 : duration.TotalHours);
-
-            TotalFee = totalHours * (int)RateType;
+            int totalHours = (int)Math.Ceiling(duration.TotalHours < 1 ? 1 : duration.TotalHours);
+            TotalFee = RateType.CalculateTotal(totalHours);
         }
     }
+
 }
-    

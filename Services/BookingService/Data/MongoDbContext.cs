@@ -1,5 +1,5 @@
 ﻿using MongoDB.Driver;
-using BookingService.Models; // 👈 đúng namespace class Booking của bạn
+using BookingService.Models; 
 
 namespace BookingService.Data
 {
