@@ -19,5 +19,6 @@ namespace VehicleService.Data
         }
 
         public IMongoCollection<Vehicle> Vehicles => _database.GetCollection<Vehicle>("vehicles");
+        public IMongoCollection<Payment> Payments => _database.GetCollection<Payment>("payments");
     }
 }

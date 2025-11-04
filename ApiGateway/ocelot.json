@@ -25,7 +25,45 @@
 			],
 			"UpstreamPathTemplate": "/vehicles/{everything}",
 			"UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ]
-		}
+		},
+		{
+			"DownstreamPathTemplate": "/api/SubscriptionPlan/{everything}",
+			"DownstreamScheme": "http",
+			"DownstreamHostAndPorts": [
+				{
+					"Host": "localhost",
+					"Port": 5003
+				}
+			],
+			"UpstreamPathTemplate": "/subscription/plans/{everything}",
+			"UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ],
+			"SwaggerKey": "SubscriptionService"
+		},
+		{
+			"DownstreamPathTemplate": "/api/VehicleSubscription/{everything}",
+			"DownstreamScheme": "http",
+			"DownstreamHostAndPorts": [
+				{
+					"Host": "localhost",
+					"Port": 5003
+				}
+			],
+			"UpstreamPathTemplate": "/subscription/vehicle-subscriptions/{everything}",
+			"UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ]
+		},
+		{
+			"DownstreamPathTemplate": "/api/ChargingSession/{everything}",
+			"DownstreamScheme": "http",
+			"DownstreamHostAndPorts": [
+				{
+					"Host": "localhost",
+					"Port": 5003
+				}
+			],
+			"UpstreamPathTemplate": "/subscription/sessions/{everything}",
+			"UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ]
+		},
+		
 	],
 	"GlobalConfiguration": {
 		"BaseUrl": "http://localhost:5230"

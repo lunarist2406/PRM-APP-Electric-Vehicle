@@ -27,16 +27,25 @@ builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
+        var jwtSecret = Environment.GetEnvironmentVariable("JWT_SECRET") 
+            ?? config["JWT_SECRET"] 
+            ?? "supersecretkey12345_supersecretkey12345";
+        var jwtIssuer = Environment.GetEnvironmentVariable("JWT_ISSUER") 
+            ?? config["JWT_ISSUER"] 
+            ?? "UserService";
+        var jwtAudience = Environment.GetEnvironmentVariable("JWT_AUDIENCE") 
+            ?? config["JWT_AUDIENCE"] 
+            ?? "UserServiceClient";
+
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
             ValidateAudience = true,
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
-            IssuerSigningKey = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(Environment.GetEnvironmentVariable("JWT_SECRET") ?? "default_secret")),
-            ValidIssuer = Environment.GetEnvironmentVariable("JWT_ISSUER"),
-            ValidAudience = Environment.GetEnvironmentVariable("JWT_AUDIENCE"),
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
+            ValidIssuer = jwtIssuer,
+            ValidAudience = jwtAudience,
             ClockSkew = TimeSpan.Zero
         };
     });
@@ -47,6 +56,7 @@ builder.Services
 builder.Services.AddSingleton<MongoDbContext>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<VehicleDataService>();
+builder.Services.AddScoped<PaymentService>();
 builder.Services.AddHttpClient();
 
 // ==========================
