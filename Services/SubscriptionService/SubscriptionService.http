@@ -1,0 +1,49 @@
+### Get All Subscription Plans
+GET http://localhost:5003/api/SubscriptionPlan
+Authorization: Bearer YOUR_TOKEN_HERE
+
+### Get Subscription Plan by ID
+GET http://localhost:5003/api/SubscriptionPlan/PLAN_ID
+Authorization: Bearer YOUR_TOKEN_HERE
+
+### Register Vehicle Subscription
+POST http://localhost:5003/api/VehicleSubscription/register
+Content-Type: application/json
+Authorization: Bearer YOUR_TOKEN_HERE
+
+{
+  "vehicleId": "vehicle123",
+  "subscriptionPlanId": "plan123",
+  "autoRenew": true
+}
+
+### Get Subscription by Vehicle ID
+GET http://localhost:5003/api/VehicleSubscription/vehicle/VEHICLE_ID
+Authorization: Bearer YOUR_TOKEN_HERE
+
+### Start Charging Session
+POST http://localhost:5003/api/ChargingSession/start
+Content-Type: application/json
+Authorization: Bearer YOUR_TOKEN_HERE
+
+{
+  "vehicleSubscriptionId": "subscription123",
+  "stationId": "station123",
+  "spotId": 1,
+  "bookingId": 123,
+  "startTime": "2024-01-01T10:00:00Z"
+}
+
+### End Charging Session
+POST http://localhost:5003/api/ChargingSession/end
+Content-Type: application/json
+Authorization: Bearer YOUR_TOKEN_HERE
+
+{
+  "sessionId": "session123",
+  "endTime": "2024-01-01T11:00:00Z",
+  "batteryNeededKwh": 50.5,
+  "stationId": "station123",
+  "stationKwh": 65
+}
+
