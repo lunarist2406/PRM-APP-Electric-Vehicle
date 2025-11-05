@@ -23,7 +23,7 @@ namespace SubscriptionService.Service
             _httpContextAccessor = httpContextAccessor;
         }
 
-        public async Task<ChargingSession?> EndSession(string sessionId, decimal batteryNeededKwh, string stationId, decimal stationKwh)
+        public async Task<ChargingSession?> EndSession(string sessionId, decimal batteryNeededKwh, decimal? actualKwh, string stationId, decimal stationKwh)
         {
             var session = await _subscriptionService.GetSessionById(sessionId);
             if (session == null || session.Status != "ongoing") return null;
@@ -41,28 +41,113 @@ namespace SubscriptionService.Service
             // Calculate kWh used: duration in hours * station kwh capacity
             var kwhUsed = (duration / 60.0m) * stationKwh;
 
+            // Validate actualKwh before calculating cost
+            decimal? validatedActualKwh = actualKwh;
+            if (actualKwh.HasValue && batteryNeededKwh > 0 && actualKwh.Value > batteryNeededKwh)
+            {
+                Console.WriteLine($"⚠️ Warning: actualKwh ({actualKwh.Value}) > batteryNeededKwh ({batteryNeededKwh}). Using batteryNeededKwh instead.");
+                validatedActualKwh = batteryNeededKwh; // Cap at batteryNeededKwh
+            }
+
             // Calculate cost based on business logic
-            var cost = CalculateSessionCost(kwhUsed, batteryNeededKwh, subscriptionPlan.KwhPrice);
+            // Priority: actualKwh (thực tế) > batteryNeededKwh (dự định) > calculated kwhUsed (từ duration)
+            var cost = CalculateSessionCost(validatedActualKwh, batteryNeededKwh, kwhUsed, subscriptionPlan.KwhPrice);
 
             // Update session
             session.EndTime = endTime;
             session.DurationMinutes = duration;
-            session.KwhUsed = kwhUsed;
+            session.KwhUsed = kwhUsed; // Keep calculated value for reference
+            session.ActualKwh = validatedActualKwh; // Store actual kWh from device (source of truth)
             session.BatteryNeededKwh = batteryNeededKwh;
             session.Cost = cost;
             session.Status = "completed";
 
             await _subscriptionService.UpdateSession(sessionId, session);
 
-            // kWh will be saved to Payment model in VehicleService by FE
-            // No usage tracking here anymore
+            // Automatically add kWh to Payment in VehicleService
+            // actualKwh: kWh thực tế đã sạc (từ thiết bị, có thể < batteryNeededKwh nếu rút sớm)
+            // batteryNeededKwh: kWh dự định sạc để đầy pin (100% - % hiện tại)
+            // Priority: actualKwh (thực tế) > batteryNeededKwh (dự định) > calculated kwhUsed (từ duration)
+            // validatedActualKwh đã được validate ở trên (capped at batteryNeededKwh if needed)
+            
+            var kwhToAdd = validatedActualKwh ?? (batteryNeededKwh > 0 ? batteryNeededKwh : kwhUsed);
+            
+            Console.WriteLine($"🔋 End session kWh: actualKwh={actualKwh}, batteryNeededKwh={batteryNeededKwh}, calculatedKwhUsed={kwhUsed}, using={kwhToAdd}");
+            
+            if (kwhToAdd > 0)
+            {
+                try
+                {
+                    var vehicleServiceUrl = Environment.GetEnvironmentVariable("VEHICLE_SERVICE_URL") 
+                        ?? _configuration["VehicleService:BaseUrl"] 
+                        ?? "http://localhost:5003";
+
+                    var httpClient = _httpClientFactory.CreateClient();
+                    httpClient.Timeout = TimeSpan.FromSeconds(10);
+
+                    // Forward Authorization header (Bearer token) to VehicleService
+                    var authHeader = _httpContextAccessor.HttpContext?.Request.Headers["Authorization"].ToString();
+                    if (!string.IsNullOrEmpty(authHeader))
+                    {
+                        var token = authHeader.StartsWith("Bearer ") ? authHeader.Substring("Bearer ".Length) : authHeader;
+                        httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+                    }
+
+                    var addKwhResponse = await httpClient.PostAsync(
+                        $"{vehicleServiceUrl}/api/payment/add-kwh",
+                        new StringContent(JsonSerializer.Serialize(new
+                        {
+                            vehicleId = vehicleSubscription.VehicleId,
+                            subscriptionId = vehicleSubscription.SubscriptionId,
+                            kwh = kwhToAdd
+                        }), System.Text.Encoding.UTF8, "application/json")
+                    );
+
+                    if (addKwhResponse.IsSuccessStatusCode)
+                    {
+                        Console.WriteLine($"✅ Automatically added {kwhToAdd} kWh to payment for vehicle {vehicleSubscription.VehicleId}");
+                    }
+                    else
+                    {
+                        var errorContent = await addKwhResponse.Content.ReadAsStringAsync();
+                        Console.WriteLine($"⚠️ Failed to auto-add kWh to payment: {addKwhResponse.StatusCode} - {errorContent}");
+                        // Session is already updated, but payment add failed
+                        // FE can manually call add-kwh endpoint if needed
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"⚠️ Error auto-adding kWh to payment: {ex.Message}");
+                    Console.WriteLine($"   StackTrace: {ex.StackTrace}");
+                    // Don't fail the session end if payment add fails - session is already saved
+                    // FE can manually call add-kwh endpoint if needed
+                }
+            }
 
             return session;
         }
 
-        private decimal CalculateSessionCost(decimal kwhUsed, decimal batteryNeededKwh, decimal kwhPrice)
+        private decimal CalculateSessionCost(decimal? actualKwh, decimal batteryNeededKwh, decimal calculatedKwhUsed, decimal kwhPrice)
         {
-            var energyToCharge = kwhUsed <= batteryNeededKwh ? kwhUsed : batteryNeededKwh;
+            // Priority: actualKwh (thực tế từ thiết bị) > batteryNeededKwh (dự định) > calculatedKwhUsed (từ duration)
+            decimal energyToCharge;
+            
+            if (actualKwh.HasValue && actualKwh.Value > 0)
+            {
+                // Use actual kWh charged (may be less than batteryNeededKwh if user unplugged early)
+                energyToCharge = actualKwh.Value;
+            }
+            else if (batteryNeededKwh > 0)
+            {
+                // Use planned kWh (but cap at calculated if calculated is less)
+                energyToCharge = calculatedKwhUsed <= batteryNeededKwh ? calculatedKwhUsed : batteryNeededKwh;
+            }
+            else
+            {
+                // Fallback to calculated kWh
+                energyToCharge = calculatedKwhUsed;
+            }
+            
             return energyToCharge * kwhPrice;
         }
 
@@ -100,6 +185,8 @@ namespace SubscriptionService.Service
             var sessions = await _subscriptionService.GetSessionsBySubscriptionId(vehicleSubscriptionId);
             var periodSessions = sessions.Where(s => s.StartTime >= periodStart && s.StartTime <= periodEnd).ToList();
 
+            Console.WriteLine($"🔍 Billing for VehicleSubscription {vehicleSubscriptionId}: Found {sessions.Count} total sessions, {periodSessions.Count} in period {periodStart:yyyy-MM-dd} to {periodEnd:yyyy-MM-dd}");
+
             decimal kwhAmount = 0m;
             decimal summedKwh = 0m;
 
@@ -129,20 +216,126 @@ namespace SubscriptionService.Service
                             var json = await resp.Content.ReadAsStringAsync();
                             var station = JsonSerializer.Deserialize<JsonElement>(json);
                             var price = station.TryGetProperty("pricePerKwh", out var p) ? p.GetDecimal() : 0m;
-                            var sessionKwh = session.KwhUsed;
-                            kwhAmount += sessionKwh * price;
-                            summedKwh += sessionKwh;
+                            
+                            // Use actualKwh if available (from device), otherwise fallback to KwhUsed (calculated)
+                            var sessionKwh = session.ActualKwh ?? session.KwhUsed;
+                            Console.WriteLine($"  📊 Session {session.Id}: actualKwh={session.ActualKwh}, kwhUsed={session.KwhUsed}, using={sessionKwh}, stationPrice={price}");
+                            
+                            if (price > 0 && sessionKwh > 0)
+                            {
+                                kwhAmount += sessionKwh * price;
+                                summedKwh += sessionKwh;
+                            }
+                            else if (price == 0)
+                            {
+                                Console.WriteLine($"  ⚠️ Station {session.StationId} has pricePerKwh = 0 or missing");
+                            }
+                            else if (sessionKwh == 0)
+                            {
+                                Console.WriteLine($"  ⚠️ Session {session.Id} has no kWh data (actualKwh={session.ActualKwh}, kwhUsed={session.KwhUsed})");
+                            }
                         }
                     }
-                    catch { }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"⚠️ Error fetching station {session.StationId}: {ex.Message}");
+                    }
                 }
             }
 
-            // Fallback to plan price if no session data fetched
+            Console.WriteLine($"💰 After processing sessions: kwhAmount={kwhAmount}, summedKwh={summedKwh}, totalKwhFromPayment={totalKwhForAllVehicles}");
+            Console.WriteLine($"📋 Plan kwh_price: {subscriptionPlan.KwhPrice}");
+
+            // If we calculated from sessions, use average price and apply to totalKwhFromPayment (source of truth)
+            // Payment kWh is the actual kWh from FE (add-kwh), sessions are just for price reference
+            if (kwhAmount > 0m && summedKwh > 0m && totalKwhForAllVehicles > 0m)
+            {
+                // Calculate average price from sessions
+                var avgPrice = kwhAmount / summedKwh;
+                Console.WriteLine($"  🔄 Using payment kWh ({totalKwhForAllVehicles}) as source of truth. Session kWh: {summedKwh}, Avg price from sessions: {avgPrice}");
+                // Recalculate using totalKwhFromPayment (actual kWh from FE)
+                kwhAmount = totalKwhForAllVehicles * avgPrice;
+                summedKwh = totalKwhForAllVehicles;
+                Console.WriteLine($"  ✅ Recalculated: kwhAmount={kwhAmount}, summedKwh={summedKwh}");
+            }
+
+            // Fallback: if no sessions found or no price from stations, use totalKwh from Payment
+            // Priority: 1) Plan kwh_price, 2) Latest station price, 3) Error
             if (kwhAmount == 0m && totalKwhForAllVehicles > 0)
             {
-                kwhAmount = totalKwhForAllVehicles * subscriptionPlan.KwhPrice;
-                summedKwh = totalKwhForAllVehicles;
+                Console.WriteLine($"⚠️ No kwhAmount calculated from sessions. Using fallback...");
+                
+                // Priority 1: Use plan's kwh_price if available
+                if (subscriptionPlan.KwhPrice > 0)
+                {
+                    // Use plan's kwh_price as fallback
+                    Console.WriteLine($"  ✅ Using plan's kwh_price: {subscriptionPlan.KwhPrice}");
+                    kwhAmount = totalKwhForAllVehicles * subscriptionPlan.KwhPrice;
+                    summedKwh = totalKwhForAllVehicles;
+                }
+                else
+                {
+                    Console.WriteLine($"  ⚠️ Plan kwh_price is 0. Trying to get from latest session's station...");
+                    // Try to get price from any recent session's station
+                    var allSessions = await _subscriptionService.GetSessionsBySubscriptionId(vehicleSubscriptionId);
+                    if (allSessions.Any())
+                    {
+                        var latestSession = allSessions.OrderByDescending(s => s.StartTime).First();
+                        Console.WriteLine($"  🔍 Latest session: StationId={latestSession.StationId}, StartTime={latestSession.StartTime}");
+                        try
+                        {
+                            var httpClient = _httpClientFactory.CreateClient();
+                            httpClient.Timeout = TimeSpan.FromSeconds(5);
+                            
+                            var authHeader = _httpContextAccessor.HttpContext?.Request.Headers["Authorization"].ToString();
+                            if (!string.IsNullOrEmpty(authHeader))
+                            {
+                                var token = authHeader.StartsWith("Bearer ") ? authHeader.Substring("Bearer ".Length) : authHeader;
+                                httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+                            }
+
+                            var stationServiceUrl = Environment.GetEnvironmentVariable("STATION_SERVICE_URL")
+                                ?? _configuration["StationService:BaseUrl"]
+                                ?? "http://localhost:5002";
+
+                            Console.WriteLine($"  🌐 Fetching station from: {stationServiceUrl}/api/Stations/{latestSession.StationId}");
+                            var resp = await httpClient.GetAsync($"{stationServiceUrl}/api/Stations/{latestSession.StationId}");
+                            
+                            if (resp.IsSuccessStatusCode)
+                            {
+                                var json = await resp.Content.ReadAsStringAsync();
+                                var station = JsonSerializer.Deserialize<JsonElement>(json);
+                                var price = station.TryGetProperty("pricePerKwh", out var p) ? p.GetDecimal() : 0m;
+                                
+                                Console.WriteLine($"  💰 Station pricePerKwh: {price}");
+                                
+                                if (price > 0)
+                                {
+                                    kwhAmount = totalKwhForAllVehicles * price;
+                                    summedKwh = totalKwhForAllVehicles;
+                                    Console.WriteLine($"  ✅ Calculated kwhAmount using station price: {kwhAmount}");
+                                }
+                                else
+                                {
+                                    Console.WriteLine($"  ❌ Station pricePerKwh is 0 or missing");
+                                }
+                            }
+                            else
+                            {
+                                var errorContent = await resp.Content.ReadAsStringAsync();
+                                Console.WriteLine($"  ❌ Failed to fetch station: {resp.StatusCode} - {errorContent}");
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"  ❌ Error fetching latest station for fallback: {ex.Message}");
+                        }
+                    }
+                    else
+                    {
+                        Console.WriteLine($"  ❌ No sessions found for this vehicleSubscription");
+                    }
+                }
             }
 
             var baseAmount = subscriptionPlan.Price;
