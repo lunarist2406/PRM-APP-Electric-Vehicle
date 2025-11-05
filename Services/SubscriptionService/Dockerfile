@@ -1,22 +1,22 @@
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
+﻿# ======================
+# 🚧 Build stage
+# ======================
+FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /app
-EXPOSE 80
 
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
-WORKDIR /src
+# Copy csproj and restore dependencies
+COPY *.csproj ./
+RUN dotnet restore
 
-COPY ["Services/SubscriptionService/SubscriptionService.csproj", "Services/SubscriptionService/"]
-RUN dotnet restore "Services/SubscriptionService/SubscriptionService.csproj"
+# Copy everything else and build
+COPY . ./
+RUN dotnet publish -c Release -o /app/publish
 
-COPY . .
-WORKDIR "/src/Services/SubscriptionService"
-RUN dotnet build "SubscriptionService.csproj" -c Release -o /app/build
-
-FROM build AS publish
-RUN dotnet publish "SubscriptionService.csproj" -c Release -o /app/publish /p:UseAppHost=false
-
-FROM base AS final
+# ======================
+# 🚀 Runtime stage
+# ======================
+FROM mcr.microsoft.com/dotnet/aspnet:9.0
 WORKDIR /app
-COPY --from=publish /app/publish .
+COPY --from=build /app/publish .
+EXPOSE 5007
 ENTRYPOINT ["dotnet", "SubscriptionService.dll"]
-
