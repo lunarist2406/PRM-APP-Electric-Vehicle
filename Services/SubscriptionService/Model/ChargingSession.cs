@@ -33,6 +33,9 @@ namespace SubscriptionService.Model
         [BsonElement("kwh_used")]
         public decimal KwhUsed { get; set; }
 
+        [BsonElement("actual_kwh")]
+        public decimal? ActualKwh { get; set; }
+
         [BsonElement("battery_needed_kwh")]
         public decimal BatteryNeededKwh { get; set; }
 

@@ -44,6 +44,7 @@ namespace SubscriptionService.Controller
             var session = await _billingService.EndSession(
                 dto.SessionId, 
                 dto.BatteryNeededKwh,
+                dto.ActualKwh, // Pass actualKwh from FE
                 dto.StationId,
                 dto.StationKwh ?? 65 // Default 65 kWh if not provided
             );

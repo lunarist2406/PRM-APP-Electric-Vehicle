@@ -93,6 +93,16 @@ namespace SubscriptionService.Service
         // Charging Sessions
         public async Task<ChargingSession?> CreateSession(string vehicleSubscriptionId, string stationId, int spotId, int? bookingId = null)
         {
+            // Do not allow starting a new session if there is an ongoing session for this subscription
+            var existingOngoing = await _context.ChargingSessions
+                .Find(s => s.VehicleSubscriptionId == vehicleSubscriptionId && s.Status == "ongoing")
+                .FirstOrDefaultAsync();
+
+            if (existingOngoing != null)
+            {
+                return null; 
+            }
+
             var session = new ChargingSession
             {
                 BookingId = bookingId,
