@@ -10,6 +10,7 @@ namespace PaymentService.Repositories
         Task<List<Payment>> GetByUserIdAsync(string userId);
         Task<List<Payment>> GetAllAsync();
         Task<Payment?> GetByIdAsync(string id);
+        Task<Payment?> GetByOrderIdAsync(string orderId);
         Task UpdateStatusAsync(string id, string status);
     }
 
@@ -41,6 +42,11 @@ namespace PaymentService.Repositories
         public async Task<Payment?> GetByIdAsync(string id)
         {
             return await _payments.Find(p => p.Id == id).FirstOrDefaultAsync();
+        }
+
+        public async Task<Payment?> GetByOrderIdAsync(string orderId)
+        {
+            return await _payments.Find(p => p.OrderId == orderId).FirstOrDefaultAsync();
         }
 
         public async Task UpdateStatusAsync(string id, string status)

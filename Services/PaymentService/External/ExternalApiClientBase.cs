@@ -18,12 +18,34 @@ namespace PaymentService.External
 
         protected async Task<T?> GetAsync<T>(string url, string token)
         {
-            var request = new HttpRequestMessage(HttpMethod.Get, url);
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-            var response = await _httpClient.SendAsync(request);
-            response.EnsureSuccessStatusCode();
-            var json = await response.Content.ReadAsStringAsync();
-            return JsonSerializer.Deserialize<T>(json);
+            try
+            {
+                var request = new HttpRequestMessage(HttpMethod.Get, url);
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+                var response = await _httpClient.SendAsync(request);
+                
+                if (!response.IsSuccessStatusCode)
+                {
+                    var errorContent = await response.Content.ReadAsStringAsync();
+                    _logger.LogError("Error calling GET {Url}: {StatusCode} - {Error}", url, response.StatusCode, errorContent);
+                    return default;
+                }
+                
+                var json = await response.Content.ReadAsStringAsync();
+                _logger.LogInformation("GET {Url} response: {Json}", url, json);
+                
+                var options = new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                };
+                
+                return JsonSerializer.Deserialize<T>(json, options);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error calling external GET {Url}", url);
+                return default;
+            }
         }
 
         protected async Task<T?> PostAsync<T>(string url, object? body, string? token = null)

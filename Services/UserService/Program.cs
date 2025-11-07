@@ -3,6 +3,7 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.IdentityModel.Logging;
 using Microsoft.OpenApi.Models;
 using MongoDB.Driver;
+using System.Threading.RateLimiting;
 using System.Text;
 using UserService.Data;
 using UserService.Services;
@@ -103,6 +104,36 @@ builder.Services
     });
 
 // ==========================
+// 🛡️ Rate Limiting (per IP)
+// ==========================
+builder.Services.AddRateLimiter(options =>
+{
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+    {
+        var ip = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        return RateLimitPartition.GetFixedWindowLimiter(ip, _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 20,
+            Window = TimeSpan.FromSeconds(10),
+            QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+            QueueLimit = 0
+        });
+    });
+
+    options.OnRejected = (context, token) =>
+    {
+        var ip = context.HttpContext.Connection.RemoteIpAddress?.ToString();
+        Console.ForegroundColor = ConsoleColor.Red;
+        Console.WriteLine($"🚫 IP {ip} bị chặn vì spam quá nhanh (Rate Limit)!");
+        Console.ResetColor();
+        context.HttpContext.Response.Headers["Retry-After"] = "10";
+        return ValueTask.CompletedTask;
+    };
+
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+});
+
+// ==========================
 // 🚀 Controllers + Swagger
 // ==========================
 builder.Services.AddControllers();
@@ -148,6 +179,7 @@ var app = builder.Build();
 // 🌍 Middleware CORS + Auth
 // ==========================
 app.UseCustomCors(); // <- bật CORS đầu tiên
+app.UseRateLimiter();
 app.UseAuthentication(); // ⚠️ phải trước Authorization
 
 // 🔍 Debug middleware token + claims
