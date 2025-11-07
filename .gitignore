@@ -56,5 +56,3 @@ TestResult.xml
 nunit-*.xml
 
 # Environment configuration files
-.env
-.env.local
