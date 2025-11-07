@@ -16,6 +16,7 @@ namespace StationService.Controllers
         {
             _stationService = stationService;
         }
+
         // 🔵 GET /api/stations/{id}
         [Authorize]
         [HttpGet("{id:length(24)}")]
@@ -30,8 +31,8 @@ namespace StationService.Controllers
                 Id = station.Id,
                 Name = station.Name,
                 Address = station.Address,
-                Latitude = station.Latitude,
-                Longitude = station.Longitude,
+                Latitude = station.Latitude ?? 0,     // ✅ tránh null
+                Longitude = station.Longitude ?? 0,
                 PowerCapacity = station.PowerCapacity,
                 PricePerKwh = station.PricePerKwh,
                 Status = station.Status,
@@ -52,8 +53,8 @@ namespace StationService.Controllers
                 Id = s.Id,
                 Name = s.Name,
                 Address = s.Address,
-                Latitude = s.Latitude,
-                Longitude = s.Longitude,
+                Latitude = s.Latitude ?? 0,
+                Longitude = s.Longitude ?? 0,
                 PowerCapacity = s.PowerCapacity,
                 PricePerKwh = s.PricePerKwh,
                 Status = s.Status,
@@ -61,8 +62,8 @@ namespace StationService.Controllers
             });
             return Ok(response);
         }
+
         // 🟢 POST /api/stations
-        // 👉 Chỉ Staff hoặc Admin mới được tạo
         [Authorize(Roles = "Admin,Staff")]
         [HttpPost]
         public async Task<IActionResult> Create([FromBody] StationCreateDto dto)
@@ -73,11 +74,11 @@ namespace StationService.Controllers
                 {
                     Name = dto.Name,
                     Address = dto.Address,
-                    Latitude = dto.Latitude,
-                    Longitude = dto.Longitude,
+                    Latitude = dto.Latitude ?? 0,    // ✅ cast an toàn
+                    Longitude = dto.Longitude ?? 0,
                     PowerCapacity = dto.PowerCapacity,
                     PricePerKwh = dto.PricePerKwh,
-                    Status = dto.Status
+                    Status = dto.Status ?? "offline"
                 };
 
                 var created = await _stationService.CreateAsync(station);
@@ -87,8 +88,8 @@ namespace StationService.Controllers
                     Id = created.Id,
                     Name = created.Name,
                     Address = created.Address,
-                    Latitude = created.Latitude,
-                    Longitude = created.Longitude,
+                    Latitude = created.Latitude ?? 0,
+                    Longitude = created.Longitude ?? 0,
                     PowerCapacity = created.PowerCapacity,
                     PricePerKwh = created.PricePerKwh,
                     Status = created.Status,
@@ -102,8 +103,6 @@ namespace StationService.Controllers
                 return BadRequest(new { message = ex.Message });
             }
         }
-
-
 
         // 🟡 PUT /api/stations/{id}
         [Authorize(Roles = "Admin,Staff")]
@@ -119,8 +118,8 @@ namespace StationService.Controllers
                 Id = updated.Id,
                 Name = updated.Name,
                 Address = updated.Address,
-                Latitude = updated.Latitude,
-                Longitude = updated.Longitude,
+                Latitude = updated.Latitude ?? 0,
+                Longitude = updated.Longitude ?? 0,
                 PowerCapacity = updated.PowerCapacity,
                 PricePerKwh = updated.PricePerKwh,
                 Status = updated.Status,

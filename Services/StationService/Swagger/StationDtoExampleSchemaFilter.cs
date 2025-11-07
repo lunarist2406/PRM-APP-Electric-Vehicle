@@ -9,7 +9,7 @@ namespace StationService.Swagger
     {
         public void Apply(OpenApiSchema schema, SchemaFilterContext context)
         {
-            if (context.Type == typeof(StationCreateDto))
+            if (context.Type == typeof(StationCreateDto) || context.Type == typeof(StationUpdateDto))
             {
                 schema.Example = new OpenApiObject
                 {
@@ -20,14 +20,6 @@ namespace StationService.Swagger
                     ["powerCapacity"] = new OpenApiInteger(50),
                     ["pricePerKwh"] = new OpenApiDouble(3000),
                     ["status"] = new OpenApiString("online")
-                };
-            }
-            else if (context.Type == typeof(StationUpdateDto))
-            {
-                schema.Example = new OpenApiObject
-                {
-                    ["pricePerKwh"] = new OpenApiDouble(3200),
-                    ["status"] = new OpenApiString("maintenance")
                 };
             }
         }
