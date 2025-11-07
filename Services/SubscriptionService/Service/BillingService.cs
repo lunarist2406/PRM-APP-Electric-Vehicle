@@ -215,7 +215,7 @@ namespace SubscriptionService.Service
                         {
                             var json = await resp.Content.ReadAsStringAsync();
                             var station = JsonSerializer.Deserialize<JsonElement>(json);
-                            var price = station.TryGetProperty("pricePerKwh", out var p) ? p.GetDecimal() : 0m;
+                            var price = ExtractStationPrice(station);
                             
                             // Use actualKwh if available (from device), otherwise fallback to KwhUsed (calculated)
                             var sessionKwh = session.ActualKwh ?? session.KwhUsed;
@@ -305,7 +305,7 @@ namespace SubscriptionService.Service
                             {
                                 var json = await resp.Content.ReadAsStringAsync();
                                 var station = JsonSerializer.Deserialize<JsonElement>(json);
-                                var price = station.TryGetProperty("pricePerKwh", out var p) ? p.GetDecimal() : 0m;
+                                var price = ExtractStationPrice(station);
                                 
                                 Console.WriteLine($"  💰 Station pricePerKwh: {price}");
                                 
@@ -544,6 +544,35 @@ namespace SubscriptionService.Service
                 Console.WriteLine($"⚠️ Error getting station info: {ex.Message}");
                 return DEFAULT_STATION_KWH;
             }
+        }
+
+        private decimal ExtractStationPrice(JsonElement station)
+        {
+            try
+            {
+                string[] candidateKeys = new[]
+                {
+                    "pricePerKwh",
+                    "price_per_kwh",
+                    "pricePerKWh",
+                    "price_per_KWh",
+                    "price"
+                };
+
+                foreach (var key in candidateKeys)
+                {
+                    if (station.TryGetProperty(key, out var value) && value.ValueKind == JsonValueKind.Number)
+                    {
+                        return value.GetDecimal();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️ Failed to parse station price: {ex.Message}");
+            }
+
+            return 0m;
         }
     }
 }
