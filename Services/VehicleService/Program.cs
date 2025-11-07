@@ -6,8 +6,7 @@ using VehicleService.Data;
 using VehicleService.Services;
 using VehicleService.Swagger;
 using DotNetEnv;
-using VehicleService.Utils; // <- thêm dòng này để dùng CorsSetup
-
+using VehicleService.Utils; 
 var builder = WebApplication.CreateBuilder(args);
 
 // ==========================
@@ -19,6 +18,7 @@ var config = builder.Configuration;
 // ==========================
 // ⚡ Bật CORS
 // ==========================
+builder.Services.AddCustomCors();  
 
 // ==========================
 // 🔐 JWT Auth Setup
@@ -114,7 +114,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 
-    app.UseSwagger();
+ app.UseSwagger();
     app.UseSwaggerUI(c =>
     {
         c.SwaggerEndpoint("/swagger/v1/swagger.json", "VehicleService API V1");

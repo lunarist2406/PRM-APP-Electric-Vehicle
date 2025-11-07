@@ -93,6 +93,27 @@ namespace VehicleService.Controller
             if (!result) return NotFound();
             return Ok(new { message = "Payment amounts updated" });
         }
+
+        // Internal endpoints (no auth required) - for service-to-service calls
+        // GET: api/payment/internal/current/{vehicleId}/{subscriptionId}
+        [HttpGet("internal/current/{vehicleId}/{subscriptionId}")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetCurrentPaymentInternal(string vehicleId, string subscriptionId)
+        {
+            var payment = await _paymentService.GetCurrentPayment(vehicleId, subscriptionId);
+            if (payment == null) return NotFound();
+            return Ok(payment);
+        }
+
+        // PATCH: api/payment/internal/{id}/status
+        [HttpPatch("internal/{id}/status")]
+        [AllowAnonymous]
+        public async Task<IActionResult> UpdatePaymentStatusInternal(string id, [FromBody] UpdatePaymentStatusDto dto)
+        {
+            var result = await _paymentService.UpdatePaymentStatus(id, dto.Status);
+            if (!result) return NotFound();
+            return Ok(new { message = "Payment status updated" });
+        }
     }
 
     public class AddKwhDto

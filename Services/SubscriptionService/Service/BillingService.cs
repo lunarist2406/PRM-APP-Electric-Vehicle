@@ -185,8 +185,6 @@ namespace SubscriptionService.Service
             var sessions = await _subscriptionService.GetSessionsBySubscriptionId(vehicleSubscriptionId);
             var periodSessions = sessions.Where(s => s.StartTime >= periodStart && s.StartTime <= periodEnd).ToList();
 
-            Console.WriteLine($"🔍 Billing for VehicleSubscription {vehicleSubscriptionId}: Found {sessions.Count} total sessions, {periodSessions.Count} in period {periodStart:yyyy-MM-dd} to {periodEnd:yyyy-MM-dd}");
-
             decimal kwhAmount = 0m;
             decimal summedKwh = 0m;
 
@@ -219,20 +217,11 @@ namespace SubscriptionService.Service
                             
                             // Use actualKwh if available (from device), otherwise fallback to KwhUsed (calculated)
                             var sessionKwh = session.ActualKwh ?? session.KwhUsed;
-                            Console.WriteLine($"  📊 Session {session.Id}: actualKwh={session.ActualKwh}, kwhUsed={session.KwhUsed}, using={sessionKwh}, stationPrice={price}");
                             
                             if (price > 0 && sessionKwh > 0)
                             {
                                 kwhAmount += sessionKwh * price;
                                 summedKwh += sessionKwh;
-                            }
-                            else if (price == 0)
-                            {
-                                Console.WriteLine($"  ⚠️ Station {session.StationId} has pricePerKwh = 0 or missing");
-                            }
-                            else if (sessionKwh == 0)
-                            {
-                                Console.WriteLine($"  ⚠️ Session {session.Id} has no kWh data (actualKwh={session.ActualKwh}, kwhUsed={session.KwhUsed})");
                             }
                         }
                     }
@@ -243,45 +232,34 @@ namespace SubscriptionService.Service
                 }
             }
 
-            Console.WriteLine($"💰 After processing sessions: kwhAmount={kwhAmount}, summedKwh={summedKwh}, totalKwhFromPayment={totalKwhForAllVehicles}");
-            Console.WriteLine($"📋 Plan kwh_price: {subscriptionPlan.KwhPrice}");
-
             // If we calculated from sessions, use average price and apply to totalKwhFromPayment (source of truth)
             // Payment kWh is the actual kWh from FE (add-kwh), sessions are just for price reference
             if (kwhAmount > 0m && summedKwh > 0m && totalKwhForAllVehicles > 0m)
             {
                 // Calculate average price from sessions
                 var avgPrice = kwhAmount / summedKwh;
-                Console.WriteLine($"  🔄 Using payment kWh ({totalKwhForAllVehicles}) as source of truth. Session kWh: {summedKwh}, Avg price from sessions: {avgPrice}");
                 // Recalculate using totalKwhFromPayment (actual kWh from FE)
                 kwhAmount = totalKwhForAllVehicles * avgPrice;
                 summedKwh = totalKwhForAllVehicles;
-                Console.WriteLine($"  ✅ Recalculated: kwhAmount={kwhAmount}, summedKwh={summedKwh}");
             }
 
             // Fallback: if no sessions found or no price from stations, use totalKwh from Payment
             // Priority: 1) Plan kwh_price, 2) Latest station price, 3) Error
             if (kwhAmount == 0m && totalKwhForAllVehicles > 0)
             {
-                Console.WriteLine($"⚠️ No kwhAmount calculated from sessions. Using fallback...");
-                
                 // Priority 1: Use plan's kwh_price if available
                 if (subscriptionPlan.KwhPrice > 0)
                 {
-                    // Use plan's kwh_price as fallback
-                    Console.WriteLine($"  ✅ Using plan's kwh_price: {subscriptionPlan.KwhPrice}");
                     kwhAmount = totalKwhForAllVehicles * subscriptionPlan.KwhPrice;
                     summedKwh = totalKwhForAllVehicles;
                 }
                 else
                 {
-                    Console.WriteLine($"  ⚠️ Plan kwh_price is 0. Trying to get from latest session's station...");
                     // Try to get price from any recent session's station
                     var allSessions = await _subscriptionService.GetSessionsBySubscriptionId(vehicleSubscriptionId);
                     if (allSessions.Any())
                     {
                         var latestSession = allSessions.OrderByDescending(s => s.StartTime).First();
-                        Console.WriteLine($"  🔍 Latest session: StationId={latestSession.StationId}, StartTime={latestSession.StartTime}");
                         try
                         {
                             var httpClient = _httpClientFactory.CreateClient();
@@ -298,7 +276,6 @@ namespace SubscriptionService.Service
                                 ?? _configuration["StationService:BaseUrl"]
                                 ?? "http://localhost:5002";
 
-                            Console.WriteLine($"  🌐 Fetching station from: {stationServiceUrl}/api/Stations/{latestSession.StationId}");
                             var resp = await httpClient.GetAsync($"{stationServiceUrl}/api/Stations/{latestSession.StationId}");
                             
                             if (resp.IsSuccessStatusCode)
@@ -307,35 +284,26 @@ namespace SubscriptionService.Service
                                 var station = JsonSerializer.Deserialize<JsonElement>(json);
                                 var price = ExtractStationPrice(station);
                                 
-                                Console.WriteLine($"  💰 Station pricePerKwh: {price}");
-                                
                                 if (price > 0)
                                 {
                                     kwhAmount = totalKwhForAllVehicles * price;
                                     summedKwh = totalKwhForAllVehicles;
-                                    Console.WriteLine($"  ✅ Calculated kwhAmount using station price: {kwhAmount}");
                                 }
-                                else
-                                {
-                                    Console.WriteLine($"  ❌ Station pricePerKwh is 0 or missing");
-                                }
-                            }
-                            else
-                            {
-                                var errorContent = await resp.Content.ReadAsStringAsync();
-                                Console.WriteLine($"  ❌ Failed to fetch station: {resp.StatusCode} - {errorContent}");
                             }
                         }
                         catch (Exception ex)
                         {
-                            Console.WriteLine($"  ❌ Error fetching latest station for fallback: {ex.Message}");
+                            Console.WriteLine($"⚠️ Error fetching latest station for fallback: {ex.Message}");
                         }
                     }
-                    else
-                    {
-                        Console.WriteLine($"  ❌ No sessions found for this vehicleSubscription");
-                    }
                 }
+            }
+
+            // Ensure TotalKwh is always from payment (source of truth), even if price calculation failed
+            if (summedKwh == 0m && totalKwhForAllVehicles > 0m)
+            {
+                summedKwh = totalKwhForAllVehicles;
+                // kwhAmount remains 0 if no price found
             }
 
             var baseAmount = subscriptionPlan.Price;
@@ -415,7 +383,7 @@ namespace SubscriptionService.Service
                         var planId = vehicleSubscription.SubscriptionId;
 
                         // Get current payment for this vehicle
-                            var paymentResponse = await httpClient.GetAsync(
+                        var paymentResponse = await httpClient.GetAsync(
                             $"{vehicleServiceUrl}/api/payment/current/{vehicleId}/{planId}");
 
                         if (paymentResponse.IsSuccessStatusCode)
@@ -500,7 +468,7 @@ namespace SubscriptionService.Service
             
             var stationServiceUrl = Environment.GetEnvironmentVariable("STATION_SERVICE_URL") 
                 ?? _configuration["StationService:BaseUrl"] 
-                ?? "http://localhost:5004";
+                ?? "http://localhost:5002";
             
             try
             {

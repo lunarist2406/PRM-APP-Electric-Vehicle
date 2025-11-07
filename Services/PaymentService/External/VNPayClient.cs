@@ -49,6 +49,29 @@ namespace PaymentService.External
             return $"{_baseUrl}?{queryString}&vnp_SecureHash={secureHash}";
         }
 
+        public bool VerifyCallback(Dictionary<string, string> vnpParams, string vnpSecureHash)
+        {
+            try
+            {
+                // Remove vnp_SecureHash from params
+                var paramsWithoutHash = vnpParams
+                    .Where(kvp => kvp.Key != "vnp_SecureHash")
+                    .ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
+
+                // Sort params
+                var sortedParams = new SortedDictionary<string, string>(paramsWithoutHash);
+                string hashData = string.Join("&", sortedParams.Select(kvp => $"{kvp.Key}={kvp.Value}"));
+                string calculatedHash = CreateHmacSha512(_hashSecret, hashData);
+
+                return calculatedHash.Equals(vnpSecureHash, StringComparison.OrdinalIgnoreCase);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error verifying VNPay callback");
+                return false;
+            }
+        }
+
         private string CreateHmacSha512(string key, string data)
         {
             using var hmac = new System.Security.Cryptography.HMACSHA512(Encoding.UTF8.GetBytes(key));

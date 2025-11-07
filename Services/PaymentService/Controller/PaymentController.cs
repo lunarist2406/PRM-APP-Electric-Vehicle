@@ -1,5 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.Configuration;
 using PaymentService.Services;
 using PaymentService.Models;
 
@@ -10,10 +12,14 @@ namespace PaymentService.Controllers
     public class PaymentController : ControllerBase
     {
         private readonly PaymentServiceLayer _service;
+        private readonly IConfiguration _configuration;
+        private readonly IWebHostEnvironment _environment;
 
-        public PaymentController(PaymentServiceLayer service)
+        public PaymentController(PaymentServiceLayer service, IConfiguration configuration, IWebHostEnvironment environment)
         {
             _service = service;
+            _configuration = configuration;
+            _environment = environment;
         }
 
         // POST: api/payment
@@ -58,15 +64,6 @@ namespace PaymentService.Controllers
             return Ok(payments);
         }
 
-<<<<<<< Updated upstream
-        // PUT: api/payment/approve/{id}
-        [HttpPut("approve/{id}")]
-        [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> ApprovePayment(string id)
-        {
-            await _service.ApprovePaymentAsync(id);
-            return Ok(new { message = "Payment approved" });
-=======
         // GET: api/payment/revenue
         [HttpGet("revenue")]
         [Authorize(Roles = "Admin")]
@@ -74,7 +71,15 @@ namespace PaymentService.Controllers
         {
             var revenue = await _service.GetRevenueAsync(startDate, endDate);
             return Ok(revenue);
->>>>>>> Stashed changes
+        }
+
+        // PUT: api/payment/approve/{id}
+        [HttpPut("approve/{id}")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> ApprovePayment(string id)
+        {
+            await _service.ApprovePaymentAsync(id);
+            return Ok(new { message = "Payment approved" });
         }
 
         // PUT: api/payment/cancel/{id}
@@ -84,6 +89,45 @@ namespace PaymentService.Controllers
         {
             await _service.CancelPaymentAsync(id);
             return Ok(new { message = "Payment canceled" });
+        }
+
+        // GET: api/payment/return-vnpay
+        // VNPay sẽ redirect về đây sau khi thanh toán
+        [HttpGet("return-vnpay")]
+        public async Task<IActionResult> ReturnVNPay()
+        {
+            // Parse all query parameters from request
+            var vnpParams = Request.Query.ToDictionary(
+                kvp => kvp.Key,
+                kvp => kvp.Value.ToString()
+            );
+            
+            var result = await _service.ProcessVNPayCallbackAsync(vnpParams);
+            
+            // Khi test local, trả về JSON thay vì redirect
+            if (_environment.IsDevelopment())
+            {
+                return Ok(new
+                {
+                    success = result.Success,
+                    message = result.Message,
+                    paymentId = result.PaymentId
+                });
+            }
+            
+            // Production: redirect về frontend
+            var frontendUrl = Environment.GetEnvironmentVariable("FRONTEND_URL") 
+                ?? _configuration["Frontend:BaseUrl"] 
+                ?? "https://yourapp.com";
+            
+            if (result.Success)
+            {
+                return Redirect($"{frontendUrl}/payment/success?paymentId={result.PaymentId}");
+            }
+            else
+            {
+                return Redirect($"{frontendUrl}/payment/failed?message={Uri.EscapeDataString(result.Message)}");
+            }
         }
     }
 }

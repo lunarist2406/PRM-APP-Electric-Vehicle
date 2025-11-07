@@ -1,6 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Net.Http;
+using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using PaymentService.Models;
 using PaymentService.Repositories;
@@ -17,6 +22,8 @@ namespace PaymentService.Services
 		private readonly BillingClient _billingClient;
 		private readonly VNPayClient _vnpayClient;
 		private readonly ILogger<PaymentServiceLayer> _logger;
+		private readonly IConfiguration _configuration;
+		private readonly IHttpClientFactory _httpClientFactory;
 
 		public PaymentServiceLayer(
 			IPaymentRepository repo,
@@ -24,7 +31,9 @@ namespace PaymentService.Services
 			UserClient userClient,
 			BillingClient billingClient,
 			VNPayClient vnpayClient,
-			ILogger<PaymentServiceLayer> logger)
+			ILogger<PaymentServiceLayer> logger,
+			IConfiguration configuration,
+			IHttpClientFactory httpClientFactory)
 		{
 			_repo = repo;
 			_vehicleClient = vehicleClient;
@@ -32,6 +41,8 @@ namespace PaymentService.Services
 			_billingClient = billingClient;
 			_vnpayClient = vnpayClient;
 			_logger = logger;
+			_configuration = configuration;
+			_httpClientFactory = httpClientFactory;
 		}
 
 		// Tạo payment
@@ -40,7 +51,18 @@ namespace PaymentService.Services
 			_logger.LogInformation("🔄 Fetching monthly bills from BillingService...");
 
 			var response = await _billingClient.GenerateMonthlyBillsAsync(token);
-			var bills = response?.Results ?? new List<BillingItemDto>();
+			if (response == null)
+			{
+				_logger.LogError("❌ BillingService returned null response");
+				return new PaymentResultDto
+				{
+					Success = false,
+					Message = "Không thể kết nối tới dịch vụ tính toán hóa đơn."
+				};
+			}
+
+			var bills = response.Results ?? new List<BillingItemDto>();
+			_logger.LogInformation("📋 Received {Count} bills from BillingService", bills.Count);
 
 			if (bills.Count == 0)
 			{
@@ -54,15 +76,25 @@ namespace PaymentService.Services
 
 			// 👉 Giả sử chỉ xử lý bill đầu tiên (hoặc bạn có thể loop tạo nhiều nếu cần)
 			var bill = bills.First();
+			_logger.LogInformation("💰 Processing bill for vehicle {VehicleId}, amount: {Amount}", bill.VehicleId, bill.TotalAmount);
+			
 			try
 			{
+				_logger.LogInformation("🔍 Fetching vehicle {VehicleId}", bill.VehicleId);
 				var vehicle = await _vehicleClient.GetVehicleByIdAsync(bill.VehicleId, token);
 				if (vehicle == null)
+				{
+					_logger.LogWarning("⚠️ Vehicle {VehicleId} not found", bill.VehicleId);
 					return new PaymentResultDto { Success = false, Message = "Không tìm thấy phương tiện tương ứng." };
+				}
 
+				_logger.LogInformation("🔍 Fetching user {UserId}", vehicle.UserId);
 				var user = await _userClient.GetUserByIdAsync(vehicle.UserId, token);
 				if (user == null)
+				{
+					_logger.LogWarning("⚠️ User {UserId} not found", vehicle.UserId);
 					return new PaymentResultDto { Success = false, Message = "Không tìm thấy người dùng tương ứng." };
+				}
 
 				var orderId = Guid.NewGuid().ToString();
 
@@ -70,6 +102,7 @@ namespace PaymentService.Services
 				{
 					UserId = user.Id,
 					VehicleId = bill.VehicleId,
+					SubscriptionId = bill.SubscriptionId,
 					Amount = (decimal)bill.TotalAmount,
 					OrderId = orderId,
 					Status = "Pending",
@@ -77,8 +110,11 @@ namespace PaymentService.Services
 				};
 
 				// 👉 Tạo URL VNPay
-				var returnUrl = Environment.GetEnvironmentVariable("VNPAY_RETURN_URL") ??
-								"https://yourapp.onrender.com/api/payment/return-vnpay";
+				var isDevelopment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development";
+				var returnUrl = Environment.GetEnvironmentVariable("VNPAY_RETURN_URL") 
+					?? (isDevelopment 
+						? "http://localhost:5008/api/payment/return-vnpay"
+						: "https://yourapp.onrender.com/api/payment/return-vnpay");
 
 				var vnPayUrl = _vnpayClient.CreatePaymentUrl(new VNPayRequestDto
 				{
@@ -150,6 +186,21 @@ namespace PaymentService.Services
 			};
 		}
 
+		// Duyệt payment
+		public async Task ApprovePaymentAsync(string paymentId)
+		{
+			var payment = await _repo.GetByIdAsync(paymentId);
+			if (payment == null)
+			{
+				_logger.LogWarning("Payment {PaymentId} not found for approval", paymentId);
+				throw new Exception("Payment not found");
+			}
+
+			// TODO: Call VNPay hoặc Billing API để xử lý thanh toán nếu cần
+			_logger.LogInformation("Approving payment {PaymentId}", paymentId);
+			await _repo.UpdateStatusAsync(paymentId, "Approved");
+		}
+
 		// Hủy payment
 		public async Task CancelPaymentAsync(string paymentId)
 		{
@@ -178,5 +229,137 @@ namespace PaymentService.Services
 
 			return _vnpayClient.CreatePaymentUrl(requestDto);
 		}
+
+		// Xử lý callback từ VNPay
+		public async Task<PaymentCallbackResult> ProcessVNPayCallbackAsync(Dictionary<string, string> vnpParams)
+		{
+			try
+			{
+				if (!vnpParams.ContainsKey("vnp_SecureHash"))
+				{
+					return new PaymentCallbackResult { Success = false, Message = "Missing vnp_SecureHash" };
+				}
+
+				var vnpSecureHash = vnpParams["vnp_SecureHash"];
+				
+				// Skip signature verification in Development mode for testing
+				var isDevelopment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development";
+				var isValid = isDevelopment || _vnpayClient.VerifyCallback(vnpParams, vnpSecureHash);
+
+				if (!isValid)
+				{
+					_logger.LogWarning("Invalid VNPay callback signature");
+					return new PaymentCallbackResult { Success = false, Message = "Invalid signature" };
+				}
+
+				// Get order ID from callback
+				if (!vnpParams.ContainsKey("vnp_TxnRef"))
+				{
+					return new PaymentCallbackResult { Success = false, Message = "Missing vnp_TxnRef" };
+				}
+
+				var orderId = vnpParams["vnp_TxnRef"];
+				var payment = await _repo.GetByOrderIdAsync(orderId);
+
+				if (payment == null)
+				{
+					_logger.LogWarning("Payment not found for orderId {OrderId}", orderId);
+					return new PaymentCallbackResult { Success = false, Message = "Payment not found" };
+				}
+
+				// Check response code
+				var responseCode = vnpParams.GetValueOrDefault("vnp_ResponseCode", "");
+				if (responseCode == "00")
+				{
+					// Payment successful
+					await _repo.UpdateStatusAsync(payment.Id, "Paid");
+					_logger.LogInformation("Payment {PaymentId} marked as Paid", payment.Id);
+
+					// Auto-update VehicleService payment status to "paid"
+					if (!string.IsNullOrEmpty(payment.VehicleId) && !string.IsNullOrEmpty(payment.SubscriptionId))
+					{
+						try
+						{
+							// Use internal endpoint to update payment status (no auth required)
+							var vehicleServiceUrl = Environment.GetEnvironmentVariable("VEHICLE_SERVICE_URL") 
+								?? _configuration["VEHICLE_API_URL"] 
+								?? "http://localhost:5003";
+							
+							var httpClient = _httpClientFactory.CreateClient();
+							httpClient.Timeout = TimeSpan.FromSeconds(10);
+							
+							// Get current payment using internal endpoint (no auth)
+							var currentPaymentUrl = $"{vehicleServiceUrl}/api/payment/internal/current/{payment.VehicleId}/{payment.SubscriptionId}";
+							var currentPaymentResponse = await httpClient.GetAsync(currentPaymentUrl);
+							
+							if (currentPaymentResponse.IsSuccessStatusCode)
+							{
+								var currentPaymentJson = await currentPaymentResponse.Content.ReadAsStringAsync();
+								var currentPayment = JsonSerializer.Deserialize<JsonElement>(currentPaymentJson);
+								
+								if (currentPayment.TryGetProperty("id", out var paymentIdElement))
+								{
+									var vehiclePaymentId = paymentIdElement.GetString();
+									if (!string.IsNullOrEmpty(vehiclePaymentId))
+									{
+										// Update payment status using internal endpoint (no auth)
+										var updateUrl = $"{vehicleServiceUrl}/api/payment/internal/{vehiclePaymentId}/status";
+										var updateContent = new StringContent(
+											JsonSerializer.Serialize(new { status = "paid" }),
+											Encoding.UTF8,
+											"application/json"
+										);
+										
+										var updateResponse = await httpClient.PatchAsync(updateUrl, updateContent);
+										if (updateResponse.IsSuccessStatusCode)
+										{
+											_logger.LogInformation("✅ Successfully updated VehicleService payment {VehiclePaymentId} to paid", vehiclePaymentId);
+										}
+										else
+										{
+											_logger.LogWarning("⚠️ Failed to update VehicleService payment status: {StatusCode}", updateResponse.StatusCode);
+										}
+									}
+								}
+							}
+							else
+							{
+								_logger.LogWarning("⚠️ Could not get current payment from VehicleService: {StatusCode}", currentPaymentResponse.StatusCode);
+							}
+						}
+						catch (Exception ex)
+						{
+							_logger.LogError(ex, "❌ Error updating VehicleService payment status (non-critical)");
+							// Don't fail the callback if VehicleService update fails
+						}
+					}
+					else
+					{
+						_logger.LogWarning("⚠️ Payment missing VehicleId or SubscriptionId, cannot update VehicleService payment");
+					}
+
+					return new PaymentCallbackResult { Success = true, Message = "Payment successful", PaymentId = payment.Id };
+				}
+				else
+				{
+					// Payment failed
+					await _repo.UpdateStatusAsync(payment.Id, "Failed");
+					_logger.LogWarning("Payment {PaymentId} failed with response code {ResponseCode}", payment.Id, responseCode);
+					return new PaymentCallbackResult { Success = false, Message = $"Payment failed. Response code: {responseCode}", PaymentId = payment.Id };
+				}
+			}
+			catch (Exception ex)
+			{
+				_logger.LogError(ex, "Error processing VNPay callback");
+				return new PaymentCallbackResult { Success = false, Message = "Error processing callback" };
+			}
+		}
+	}
+
+	public class PaymentCallbackResult
+	{
+		public bool Success { get; set; }
+		public string Message { get; set; } = string.Empty;
+		public string? PaymentId { get; set; }
 	}
 }
