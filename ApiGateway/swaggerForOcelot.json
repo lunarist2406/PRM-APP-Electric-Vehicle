@@ -14,9 +14,9 @@
       "Key": "VehicleService",
       "Config": [
         {
-          "Name": "VehicleService API",
+          "Name": "VehicleService - Vehicles API",
           "Version": "v1",
-          "Url": "http://localhost:5002/swagger/v1/swagger.json"
+          "Url": "https://prm-app-electric-vehicle-axxq.onrender.com/swagger/v1/swagger.json"
         }
       ]
     },
@@ -26,7 +26,57 @@
         {
           "Name": "SubscriptionService API",
           "Version": "v1",
-          "Url": "http://localhost:5003/swagger/v1/swagger.json"
+          "Url": "https://prm-app-electric-vehicle-1.onrender.com/swagger/v1/swagger.json"
+        }
+      ]
+    },
+    {
+      "Key": "StationService",
+      "Config": [
+        {
+          "Name": "StationService API",
+          "Version": "v1",
+          "Url": "https://prm-app-electric-vehicle-8373.onrender.com/swagger/v1/swagger.json"
+        }
+      ]
+    },
+    {
+      "Key": "CompanyService",
+      "Config": [
+        {
+          "Name": "CompanyService API",
+          "Version": "v1",
+          "Url": "https://prm-app-electric-vehicle-4531.onrender.com/swagger/v1/swagger.json"
+        }
+      ]
+    },
+    {
+      "Key": "ChargingPointService",
+      "Config": [
+        {
+          "Name": "ChargingPointService API",
+          "Version": "v1",
+          "Url": "https://prm-app-electric-vehicle-chargingpoint.onrender.com/swagger/v1/swagger.json"
+        }
+      ]
+    },
+    {
+      "Key": "PaymentService",
+      "Config": [
+        {
+          "Name": "PaymentService API",
+          "Version": "v1",
+          "Url": "https://prm-app-electric-vehicle-payment.onrender.com/swagger/v1/swagger.json"
+        }
+      ]
+    },
+    {
+      "Key": "AIService",
+      "Config": [
+        {
+          "Name": "AIService API",
+          "Version": "v1",
+          "Url": "https://prm-app-electric-vehicle-5j1m.onrender.com/swagger/v1/swagger.json"
         }
       ]
     }
