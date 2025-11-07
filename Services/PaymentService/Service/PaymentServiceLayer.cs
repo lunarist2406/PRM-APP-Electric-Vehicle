@@ -1,6 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.Http;
+using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -20,6 +23,7 @@ namespace PaymentService.Services
 		private readonly VNPayClient _vnpayClient;
 		private readonly ILogger<PaymentServiceLayer> _logger;
 		private readonly IConfiguration _configuration;
+		private readonly IHttpClientFactory _httpClientFactory;
 
 		public PaymentServiceLayer(
 			IPaymentRepository repo,
@@ -28,7 +32,8 @@ namespace PaymentService.Services
 			BillingClient billingClient,
 			VNPayClient vnpayClient,
 			ILogger<PaymentServiceLayer> logger,
-			IConfiguration configuration)
+			IConfiguration configuration,
+			IHttpClientFactory httpClientFactory)
 		{
 			_repo = repo;
 			_vehicleClient = vehicleClient;
@@ -37,6 +42,7 @@ namespace PaymentService.Services
 			_vnpayClient = vnpayClient;
 			_logger = logger;
 			_configuration = configuration;
+			_httpClientFactory = httpClientFactory;
 		}
 
 		// Tạo payment
@@ -96,6 +102,7 @@ namespace PaymentService.Services
 				{
 					UserId = user.Id,
 					VehicleId = bill.VehicleId,
+					SubscriptionId = bill.SubscriptionId,
 					Amount = (decimal)bill.TotalAmount,
 					OrderId = orderId,
 					Status = "Pending",
@@ -151,21 +158,6 @@ namespace PaymentService.Services
 		public async Task<List<Payment>> GetAllPaymentsAsync()
 		{
 			return await _repo.GetAllAsync();
-		}
-
-		// Duyệt payment
-		public async Task ApprovePaymentAsync(string paymentId)
-		{
-			var payment = await _repo.GetByIdAsync(paymentId);
-			if (payment == null)
-			{
-				_logger.LogWarning("Payment {PaymentId} not found for approval", paymentId);
-				throw new Exception("Payment not found");
-			}
-
-			// TODO: Call VNPay hoặc Billing API để xử lý thanh toán nếu cần
-			_logger.LogInformation("Approving payment {PaymentId}", paymentId);
-			await _repo.UpdateStatusAsync(paymentId, "Approved");
 		}
 
 		// Hủy payment
@@ -241,6 +233,70 @@ namespace PaymentService.Services
 					// Payment successful
 					await _repo.UpdateStatusAsync(payment.Id, "Paid");
 					_logger.LogInformation("Payment {PaymentId} marked as Paid", payment.Id);
+
+					// Auto-update VehicleService payment status to "paid"
+					if (!string.IsNullOrEmpty(payment.VehicleId) && !string.IsNullOrEmpty(payment.SubscriptionId))
+					{
+						try
+						{
+							// Use internal endpoint to update payment status (no auth required)
+							var vehicleServiceUrl = Environment.GetEnvironmentVariable("VEHICLE_SERVICE_URL") 
+								?? _configuration["VEHICLE_API_URL"] 
+								?? "http://localhost:5003";
+							
+							var httpClient = _httpClientFactory.CreateClient();
+							httpClient.Timeout = TimeSpan.FromSeconds(10);
+							
+							// Get current payment using internal endpoint (no auth)
+							var currentPaymentUrl = $"{vehicleServiceUrl}/api/payment/internal/current/{payment.VehicleId}/{payment.SubscriptionId}";
+							var currentPaymentResponse = await httpClient.GetAsync(currentPaymentUrl);
+							
+							if (currentPaymentResponse.IsSuccessStatusCode)
+							{
+								var currentPaymentJson = await currentPaymentResponse.Content.ReadAsStringAsync();
+								var currentPayment = JsonSerializer.Deserialize<JsonElement>(currentPaymentJson);
+								
+								if (currentPayment.TryGetProperty("id", out var paymentIdElement))
+								{
+									var vehiclePaymentId = paymentIdElement.GetString();
+									if (!string.IsNullOrEmpty(vehiclePaymentId))
+									{
+										// Update payment status using internal endpoint (no auth)
+										var updateUrl = $"{vehicleServiceUrl}/api/payment/internal/{vehiclePaymentId}/status";
+										var updateContent = new StringContent(
+											JsonSerializer.Serialize(new { status = "paid" }),
+											Encoding.UTF8,
+											"application/json"
+										);
+										
+										var updateResponse = await httpClient.PatchAsync(updateUrl, updateContent);
+										if (updateResponse.IsSuccessStatusCode)
+										{
+											_logger.LogInformation("✅ Successfully updated VehicleService payment {VehiclePaymentId} to paid", vehiclePaymentId);
+										}
+										else
+										{
+											_logger.LogWarning("⚠️ Failed to update VehicleService payment status: {StatusCode}", updateResponse.StatusCode);
+										}
+									}
+								}
+							}
+							else
+							{
+								_logger.LogWarning("⚠️ Could not get current payment from VehicleService: {StatusCode}", currentPaymentResponse.StatusCode);
+							}
+						}
+						catch (Exception ex)
+						{
+							_logger.LogError(ex, "❌ Error updating VehicleService payment status (non-critical)");
+							// Don't fail the callback if VehicleService update fails
+						}
+					}
+					else
+					{
+						_logger.LogWarning("⚠️ Payment missing VehicleId or SubscriptionId, cannot update VehicleService payment");
+					}
+
 					return new PaymentCallbackResult { Success = true, Message = "Payment successful", PaymentId = payment.Id };
 				}
 				else

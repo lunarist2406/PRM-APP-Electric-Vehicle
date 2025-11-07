@@ -16,6 +16,9 @@ namespace PaymentService.Models
         [BsonElement("VehicleId")]
         public string VehicleId { get; set; } = null!;
 
+        [BsonElement("SubscriptionId")]
+        public string? SubscriptionId { get; set; } // để tìm payment trong VehicleService
+
         [BsonElement("OrderId")]
         public string OrderId { get; set; } = null!; // dùng để map với VNPay order
 
