@@ -58,6 +58,7 @@ namespace PaymentService.Controllers
             return Ok(payments);
         }
 
+<<<<<<< Updated upstream
         // PUT: api/payment/approve/{id}
         [HttpPut("approve/{id}")]
         [Authorize(Roles = "Admin")]
@@ -65,6 +66,15 @@ namespace PaymentService.Controllers
         {
             await _service.ApprovePaymentAsync(id);
             return Ok(new { message = "Payment approved" });
+=======
+        // GET: api/payment/revenue
+        [HttpGet("revenue")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> GetRevenue([FromQuery] DateTime? startDate = null, [FromQuery] DateTime? endDate = null)
+        {
+            var revenue = await _service.GetRevenueAsync(startDate, endDate);
+            return Ok(revenue);
+>>>>>>> Stashed changes
         }
 
         // PUT: api/payment/cancel/{id}

@@ -124,19 +124,30 @@ namespace PaymentService.Services
 			return await _repo.GetAllAsync();
 		}
 
-		// Duyệt payment
-		public async Task ApprovePaymentAsync(string paymentId)
+		// Lấy doanh thu (admin)
+		public async Task<RevenueDto> GetRevenueAsync(DateTime? startDate = null, DateTime? endDate = null)
 		{
-			var payment = await _repo.GetByIdAsync(paymentId);
-			if (payment == null)
+			List<Payment> paidPayments;
+			
+			if (startDate.HasValue && endDate.HasValue)
 			{
-				_logger.LogWarning("Payment {PaymentId} not found for approval", paymentId);
-				throw new Exception("Payment not found");
+				paidPayments = await _repo.GetPaidPaymentsByDateRangeAsync(startDate.Value, endDate.Value);
+			}
+			else
+			{
+				paidPayments = await _repo.GetPaidPaymentsAsync();
 			}
 
-			// TODO: Call VNPay hoặc Billing API để xử lý thanh toán nếu cần
-			_logger.LogInformation("Approving payment {PaymentId}", paymentId);
-			await _repo.UpdateStatusAsync(paymentId, "Approved");
+			var totalRevenue = paidPayments.Sum(p => p.Amount);
+			var totalCount = paidPayments.Count;
+
+			return new RevenueDto
+			{
+				TotalRevenue = totalRevenue,
+				TotalPaidPayments = totalCount,
+				StartDate = startDate,
+				EndDate = endDate
+			};
 		}
 
 		// Hủy payment
