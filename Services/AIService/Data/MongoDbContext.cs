@@ -11,7 +11,7 @@ namespace AIService.Data
         {
             var mongoUri = Environment.GetEnvironmentVariable("MONGO_URI");
             if (string.IsNullOrEmpty(mongoUri))
-                throw new Exception("❌ Missing MONGO_URI environment variable!");
+                throw new Exception("Missing MONGO_URI environment variable!");
 
             var dbName = Environment.GetEnvironmentVariable("MONGO_DB_NAME") ?? "ev_ai";
 
