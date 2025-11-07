@@ -186,21 +186,6 @@ namespace PaymentService.Services
 			};
 		}
 
-		// Duyệt payment
-		public async Task ApprovePaymentAsync(string paymentId)
-		{
-			var payment = await _repo.GetByIdAsync(paymentId);
-			if (payment == null)
-			{
-				_logger.LogWarning("Payment {PaymentId} not found for approval", paymentId);
-				throw new Exception("Payment not found");
-			}
-
-			// TODO: Call VNPay hoặc Billing API để xử lý thanh toán nếu cần
-			_logger.LogInformation("Approving payment {PaymentId}", paymentId);
-			await _repo.UpdateStatusAsync(paymentId, "Approved");
-		}
-
 		// Hủy payment
 		public async Task CancelPaymentAsync(string paymentId)
 		{

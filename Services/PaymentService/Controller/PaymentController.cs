@@ -73,15 +73,6 @@ namespace PaymentService.Controllers
             return Ok(revenue);
         }
 
-        // PUT: api/payment/approve/{id}
-        [HttpPut("approve/{id}")]
-        [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> ApprovePayment(string id)
-        {
-            await _service.ApprovePaymentAsync(id);
-            return Ok(new { message = "Payment approved" });
-        }
-
         // PUT: api/payment/cancel/{id}
         [HttpPut("cancel/{id}")]
         [Authorize]
