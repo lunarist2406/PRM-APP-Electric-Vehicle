@@ -415,12 +415,13 @@ namespace SubscriptionService.Service
                         var planId = vehicleSubscription.SubscriptionId;
 
                         // Get current payment for this vehicle
-                            var paymentResponse = await httpClient.GetAsync(
+                        var paymentResponse = await httpClient.GetAsync(
                             $"{vehicleServiceUrl}/api/payment/current/{vehicleId}/{planId}");
 
                         if (paymentResponse.IsSuccessStatusCode)
                         {
                             var paymentJson = await paymentResponse.Content.ReadAsStringAsync();
+                            Console.WriteLine($"📄 Payment response for vehicle {vehicleId}: {paymentJson}");
                             var payment = JsonSerializer.Deserialize<JsonElement>(paymentJson);
 
                             if (payment.TryGetProperty("kwh", out var kwhElement) && 
@@ -428,6 +429,8 @@ namespace SubscriptionService.Service
                             {
                                 var totalKwh = kwhElement.GetDecimal();
                                 var paymentId = idElement.GetString() ?? "";
+                                
+                                Console.WriteLine($"💰 Found payment {paymentId} with kwh={totalKwh} for vehicle {vehicleId}");
 
                                 if (totalKwh > 0 && !string.IsNullOrEmpty(paymentId))
                                 {
@@ -455,6 +458,7 @@ namespace SubscriptionService.Service
                                     {
                                         billingResult.VehicleId = vehicleId;
                                         results.Add(billingResult);
+                                        Console.WriteLine($"✅ Successfully generated bill for vehicle {vehicleId}: kwhAmount={billingResult.KwhAmount}, totalAmount={billingResult.TotalAmount}");
 
                                         // Lock payment: set status to pending (no more add-kWh)
                                         await httpClient.PatchAsync(
@@ -462,8 +466,26 @@ namespace SubscriptionService.Service
                                             new StringContent(JsonSerializer.Serialize(new { status = "pending" }), System.Text.Encoding.UTF8, "application/json")
                                         );
                                     }
+                                    else
+                                    {
+                                        var errorContent = await updateResponse.Content.ReadAsStringAsync();
+                                        Console.WriteLine($"⚠️ Failed to update payment amounts: {updateResponse.StatusCode} - {errorContent}");
+                                    }
+                                }
+                                else
+                                {
+                                    Console.WriteLine($"⚠️ Payment {paymentId} has kwh={totalKwh} (must be > 0) or paymentId is empty");
                                 }
                             }
+                            else
+                            {
+                                Console.WriteLine($"⚠️ Payment response missing 'kwh' or 'id' field for vehicle {vehicleId}");
+                            }
+                        }
+                        else
+                        {
+                            var errorContent = await paymentResponse.Content.ReadAsStringAsync();
+                            Console.WriteLine($"⚠️ Failed to get current payment for vehicle {vehicleId}: {paymentResponse.StatusCode} - {errorContent}");
                         }
                     }
                     catch (Exception ex)
