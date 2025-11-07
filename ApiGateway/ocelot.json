@@ -32,7 +32,7 @@
 			"DownstreamHostAndPorts": [
 				{
 					"Host": "localhost",
-					"Port": 5003
+					"Port": 5004
 				}
 			],
 			"UpstreamPathTemplate": "/subscription/plans/{everything}",
@@ -45,7 +45,7 @@
 			"DownstreamHostAndPorts": [
 				{
 					"Host": "localhost",
-					"Port": 5003
+					"Port": 5004
 				}
 			],
 			"UpstreamPathTemplate": "/subscription/vehicle-subscriptions/{everything}",
@@ -57,10 +57,22 @@
 			"DownstreamHostAndPorts": [
 				{
 					"Host": "localhost",
-					"Port": 5003
+					"Port": 5004
 				}
 			],
 			"UpstreamPathTemplate": "/subscription/sessions/{everything}",
+			"UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ]
+		},
+		{
+			"DownstreamPathTemplate": "/api/Billing/{everything}",
+			"DownstreamScheme": "http",
+			"DownstreamHostAndPorts": [
+				{
+					"Host": "localhost",
+					"Port": 5004
+				}
+			],
+			"UpstreamPathTemplate": "/subscription/billing/{everything}",
 			"UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ]
 		},
 		

@@ -18,15 +18,18 @@ namespace PaymentService.External
 
         public async Task<BillingResponseDto?> GenerateMonthlyBillsAsync(string token)
         {
-            var url = $"{_baseUrl}/api/Billing/generate-monthly-bills";
+            var url = $"{_baseUrl}/api/billing/generate-monthly-bills";
 
             try
             {
-                return await PostAsync<BillingResponseDto>(url, null, token);
+                _logger.LogInformation("Calling BillingService: {Url}", url);
+                var result = await PostAsync<BillingResponseDto>(url, null, token);
+                _logger.LogInformation("BillingService response: {Result}", result != null ? "Success" : "Null");
+                return result;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error calling GenerateMonthlyBillsAsync");
+                _logger.LogError(ex, "Error calling GenerateMonthlyBillsAsync: {Message}", ex.Message);
                 return null;
             }
         }
