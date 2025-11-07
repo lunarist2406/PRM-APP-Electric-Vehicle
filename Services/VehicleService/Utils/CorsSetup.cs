@@ -15,7 +15,7 @@ namespace VehicleService.Utils
                 options.AddPolicy(CorsPolicyName, policy =>
                 {
                     policy
-                        .AllowAnyOrigin()   // cho phép tất cả domain
+                        .AllowAnyOrigin()   
                         .AllowAnyHeader()
                         .AllowAnyMethod();
                 });
