@@ -6,7 +6,7 @@
         {
           "Name": "UserService API",
           "Version": "v1",
-          "Url": "http://localhost:5001/swagger/v1/swagger.json"
+          "Url": "https://prm-app-electric-vehicle.onrender.com/swagger/v1/swagger.json"
         }
       ]
     },

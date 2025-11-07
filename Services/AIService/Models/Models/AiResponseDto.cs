@@ -1,3 +1,6 @@
+﻿using AIService.Models.DTOs;
+using System.Collections.Generic;
+
 namespace AIService.Models.DTOs
 {
     public class AiResponseDto
@@ -6,5 +9,8 @@ namespace AIService.Models.DTOs
         public string? SuggestedStationId { get; set; }
         public string? StationName { get; set; }
         public string? Address { get; set; }
+
+        // Thêm property để trả toàn bộ danh sách trạm
+        public List<StationResponseDto>? Stations { get; set; }
     }
 }

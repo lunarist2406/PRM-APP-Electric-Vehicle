@@ -30,5 +30,10 @@ namespace AIService.Repositories
         {
             await _context.ChatHistories.DeleteManyAsync(c => c.UserId == userId);
         }
+
+        public async Task DeleteChatByIdAsync(string chatId)
+        {
+            await _context.ChatHistories.DeleteOneAsync(c => c.Id == chatId);
+        }
     }
 }
