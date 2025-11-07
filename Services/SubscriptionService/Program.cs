@@ -6,6 +6,7 @@ using SubscriptionService.Data;
 using SubscriptionService.Service;
 using SubscriptionService.Swagger;
 using SubscriptionService.Utils;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -65,6 +66,36 @@ builder.Services.AddScoped<BillingService>();
 builder.Services.AddHttpClient();
 
 // ==========================
+// 🛡️ Rate Limiting (per IP)
+// ==========================
+builder.Services.AddRateLimiter(options =>
+{
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+    {
+        var ip = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        return RateLimitPartition.GetFixedWindowLimiter(ip, _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 20,
+            Window = TimeSpan.FromSeconds(10),
+            QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+            QueueLimit = 0
+        });
+    });
+
+    options.OnRejected = (context, token) =>
+    {
+        var ip = context.HttpContext.Connection.RemoteIpAddress?.ToString();
+        Console.ForegroundColor = ConsoleColor.Red;
+        Console.WriteLine($"🚫 IP {ip} bị chặn vì spam quá nhanh (Rate Limit)!");
+        Console.ResetColor();
+        context.HttpContext.Response.Headers["Retry-After"] = "10";
+        return ValueTask.CompletedTask;
+    };
+
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+});
+
+// ==========================
 // 🚀 Controllers + Swagger
 // ==========================
 builder.Services.AddControllers();
@@ -113,6 +144,7 @@ var app = builder.Build();
 // 🌍 Middleware
 // ==========================
 app.UseCustomCors();
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 
