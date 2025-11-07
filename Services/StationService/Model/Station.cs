@@ -1,4 +1,4 @@
-using MongoDB.Bson;
+﻿using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 
 namespace StationService.Models
@@ -16,10 +16,11 @@ namespace StationService.Models
         public string Address { get; set; } = null!;
 
         [BsonElement("latitude")]
-        public double Latitude { get; set; }
+        public double? Latitude { get; set; }
 
         [BsonElement("longitude")]
-        public double Longitude { get; set; }
+        public double? Longitude { get; set; }
+
 
         [BsonElement("power_capacity")]
         public int PowerCapacity { get; set; }
