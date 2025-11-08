@@ -92,7 +92,7 @@
 			"SwaggerKey": "SubscriptionService"
 		},
 		{
-			"DownstreamPathTemplate": "/api/Station/{everything}",
+			"DownstreamPathTemplate": "/api/Stations/{everything}",
 			"DownstreamScheme": "https",
 			"DownstreamHostAndPorts": [
 				{
@@ -131,7 +131,7 @@
 			"SwaggerKey": "ChargingPointService"
 		},
 		{
-			"DownstreamPathTemplate": "/api/Booking/{everything}",
+			"DownstreamPathTemplate": "/api/Bookings/{everything}",
 			"DownstreamScheme": "https",
 			"DownstreamHostAndPorts": [
 				{
