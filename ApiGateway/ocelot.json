@@ -1,5 +1,6 @@
 ﻿{
 	"Routes": [
+		// --- User / Auth ---
 		{
 			"DownstreamPathTemplate": "/api/Auth/{everything}",
 			"DownstreamScheme": "https",
@@ -26,8 +27,10 @@
 			"UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ],
 			"SwaggerKey": "UserService"
 		},
+
+		// --- VehicleService ---
 		{
-			"DownstreamPathTemplate": "/api/Vehicles/{everything}",
+			"DownstreamPathTemplate": "/api/Vehicles",
 			"DownstreamScheme": "https",
 			"DownstreamHostAndPorts": [
 				{
@@ -35,26 +38,40 @@
 					"Port": 443
 				}
 			],
-			"UpstreamPathTemplate": "/vehicles/{everything}",
-			"UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ],
+			"UpstreamPathTemplate": "/vehicles",
+			"UpstreamHttpMethod": [ "GET", "POST" ],
 			"SwaggerKey": "VehicleService"
 		},
 		{
-			"DownstreamPathTemplate": "/api/Payment/{everything}",
+			"DownstreamPathTemplate": "/api/Vehicles/{id}",
 			"DownstreamScheme": "https",
 			"DownstreamHostAndPorts": [
 				{
-					"Host": "prm-app-electric-vehicle-xxxx.onrender.com",
+					"Host": "prm-app-electric-vehicle-axxq.onrender.com",
 					"Port": 443
 				}
 			],
-			"UpstreamPathTemplate": "/payments/{everything}",
-			"UpstreamHttpMethod": [ "GET", "POST", "PATCH" ],
-			"SwaggerKey": "PaymentService"
+			"UpstreamPathTemplate": "/vehicles/{id}",
+			"UpstreamHttpMethod": [ "GET", "PUT", "DELETE" ],
+			"SwaggerKey": "VehicleService"
+		},
+		{
+			"DownstreamPathTemplate": "/api/Vehicles/myVehicle",
+			"DownstreamScheme": "https",
+			"DownstreamHostAndPorts": [
+				{
+					"Host": "prm-app-electric-vehicle-axxq.onrender.com",
+					"Port": 443
+				}
+			],
+			"UpstreamPathTemplate": "/vehicles/myVehicle",
+			"UpstreamHttpMethod": [ "GET" ],
+			"SwaggerKey": "VehicleService"
 		},
 
+		// --- PaymentService ---
 		{
-			"DownstreamPathTemplate": "/api/Payment/{everything}",
+			"DownstreamPathTemplate": "/api/Payment/add-kwh",
 			"DownstreamScheme": "https",
 			"DownstreamHostAndPorts": [
 				{
@@ -62,10 +79,90 @@
 					"Port": 443
 				}
 			],
-			"UpstreamPathTemplate": "/payments/{everything}",
-			"UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ],
+			"UpstreamPathTemplate": "/payments/add-kwh",
+			"UpstreamHttpMethod": [ "POST" ],
 			"SwaggerKey": "PaymentService"
 		},
+		{
+			"DownstreamPathTemplate": "/api/Payment/vehicle/{vehicleId}",
+			"DownstreamScheme": "https",
+			"DownstreamHostAndPorts": [
+				{
+					"Host": "prm-app-electric-vehicle-payment.onrender.com",
+					"Port": 443
+				}
+			],
+			"UpstreamPathTemplate": "/payments/vehicle/{vehicleId}",
+			"UpstreamHttpMethod": [ "GET" ],
+			"SwaggerKey": "PaymentService"
+		},
+		{
+			"DownstreamPathTemplate": "/api/Payment/{id}",
+			"DownstreamScheme": "https",
+			"DownstreamHostAndPorts": [
+				{
+					"Host": "prm-app-electric-vehicle-payment.onrender.com",
+					"Port": 443
+				}
+			],
+			"UpstreamPathTemplate": "/payments/{id}",
+			"UpstreamHttpMethod": [ "GET", "PATCH" ],
+			"SwaggerKey": "PaymentService"
+		},
+		{
+			"DownstreamPathTemplate": "/api/Payment/current/{vehicleId}/{subscriptionId}",
+			"DownstreamScheme": "https",
+			"DownstreamHostAndPorts": [
+				{
+					"Host": "prm-app-electric-vehicle-payment.onrender.com",
+					"Port": 443
+				}
+			],
+			"UpstreamPathTemplate": "/payments/current/{vehicleId}/{subscriptionId}",
+			"UpstreamHttpMethod": [ "GET" ],
+			"SwaggerKey": "PaymentService"
+		},
+		{
+			"DownstreamPathTemplate": "/api/Payment/{id}/status",
+			"DownstreamScheme": "https",
+			"DownstreamHostAndPorts": [
+				{
+					"Host": "prm-app-electric-vehicle-payment.onrender.com",
+					"Port": 443
+				}
+			],
+			"UpstreamPathTemplate": "/payments/{id}/status",
+			"UpstreamHttpMethod": [ "PATCH" ],
+			"SwaggerKey": "PaymentService"
+		},
+		{
+			"DownstreamPathTemplate": "/api/Payment/monthly-billing",
+			"DownstreamScheme": "https",
+			"DownstreamHostAndPorts": [
+				{
+					"Host": "prm-app-electric-vehicle-payment.onrender.com",
+					"Port": 443
+				}
+			],
+			"UpstreamPathTemplate": "/payments/monthly-billing",
+			"UpstreamHttpMethod": [ "GET" ],
+			"SwaggerKey": "PaymentService"
+		},
+		{
+			"DownstreamPathTemplate": "/api/Payment/{id}/amounts",
+			"DownstreamScheme": "https",
+			"DownstreamHostAndPorts": [
+				{
+					"Host": "prm-app-electric-vehicle-payment.onrender.com",
+					"Port": 443
+				}
+			],
+			"UpstreamPathTemplate": "/payments/{id}/amounts",
+			"UpstreamHttpMethod": [ "PATCH" ],
+			"SwaggerKey": "PaymentService"
+		},
+
+		// --- SubscriptionService ---
 		{
 			"DownstreamPathTemplate": "/api/SubscriptionPlan/{everything}",
 			"DownstreamScheme": "https",
@@ -105,6 +202,8 @@
 			"UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ],
 			"SwaggerKey": "SubscriptionService"
 		},
+
+		// --- StationService ---
 		{
 			"DownstreamPathTemplate": "/api/Stations/{everything}",
 			"DownstreamScheme": "https",
@@ -118,6 +217,8 @@
 			"UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ],
 			"SwaggerKey": "StationService"
 		},
+
+		// --- CompanyService ---
 		{
 			"DownstreamPathTemplate": "/api/Company/{everything}",
 			"DownstreamScheme": "https",
@@ -127,10 +228,12 @@
 					"Port": 443
 				}
 			],
-			"UpstreamPathTemplate": "/Companies/{everything}",
+			"UpstreamPathTemplate": "/companies/{everything}",
 			"UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ],
 			"SwaggerKey": "CompanyService"
 		},
+
+		// --- ChargingPointService ---
 		{
 			"DownstreamPathTemplate": "/api/ChargingPoint/{everything}",
 			"DownstreamScheme": "https",
@@ -144,6 +247,8 @@
 			"UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ],
 			"SwaggerKey": "ChargingPointService"
 		},
+
+		// --- BookingService ---
 		{
 			"DownstreamPathTemplate": "/api/Bookings/{everything}",
 			"DownstreamScheme": "https",
@@ -157,6 +262,8 @@
 			"UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ],
 			"SwaggerKey": "BookingService"
 		},
+
+		// --- AIService ---
 		{
 			"DownstreamPathTemplate": "/api/AI/{everything}",
 			"DownstreamScheme": "https",
