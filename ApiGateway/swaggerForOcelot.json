@@ -61,6 +61,16 @@
       ]
     },
     {
+      "Key": "BookingService",
+      "Config": [
+        {
+          "Name": "BookingService API",
+          "Version": "v1",
+          "Url": "https://prm-app-electric-vehicle-6fvb.onrender.com/swagger/v1/swagger.json"
+        }
+      ]
+    },
+    {
       "Key": "PaymentService",
       "Config": [
         {

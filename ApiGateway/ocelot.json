@@ -131,6 +131,19 @@
 			"SwaggerKey": "ChargingPointService"
 		},
 		{
+			"DownstreamPathTemplate": "/api/Booking/{everything}",
+			"DownstreamScheme": "https",
+			"DownstreamHostAndPorts": [
+				{
+					"Host": "prm-app-electric-vehicle-6fvb.onrender.com",
+					"Port": 443
+				}
+			],
+			"UpstreamPathTemplate": "/bookings/{everything}",
+			"UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ],
+			"SwaggerKey": "BookingService"
+		},
+		{
 			"DownstreamPathTemplate": "/api/AI/{everything}",
 			"DownstreamScheme": "https",
 			"DownstreamHostAndPorts": [
