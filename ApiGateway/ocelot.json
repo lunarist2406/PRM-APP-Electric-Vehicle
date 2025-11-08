@@ -44,6 +44,20 @@
 			"DownstreamScheme": "https",
 			"DownstreamHostAndPorts": [
 				{
+					"Host": "prm-app-electric-vehicle-xxxx.onrender.com",
+					"Port": 443
+				}
+			],
+			"UpstreamPathTemplate": "/payments/{everything}",
+			"UpstreamHttpMethod": [ "GET", "POST", "PATCH" ],
+			"SwaggerKey": "PaymentService"
+		},
+
+		{
+			"DownstreamPathTemplate": "/api/Payment/{everything}",
+			"DownstreamScheme": "https",
+			"DownstreamHostAndPorts": [
+				{
 					"Host": "prm-app-electric-vehicle-payment.onrender.com",
 					"Port": 443
 				}
@@ -113,7 +127,7 @@
 					"Port": 443
 				}
 			],
-			"UpstreamPathTemplate": "/companies/{everything}",
+			"UpstreamPathTemplate": "/Companies/{everything}",
 			"UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ],
 			"SwaggerKey": "CompanyService"
 		},
