@@ -28,7 +28,6 @@ namespace AIService.Services
             _logger = logger;
             _stationClient = stationClient;
             _chatRepo = chatRepo;
-
             _apiKey = config["GOOGLE_API_KEY"] ?? throw new ArgumentNullException("GOOGLE_API_KEY missing");
         }
 
@@ -39,65 +38,68 @@ namespace AIService.Services
             try
             {
                 string aiInput = request.Message;
+                List<StationResponseDto> stations = new();
 
+                // Nếu câu hỏi liên quan trạm sạc
                 if (IsStationQuery(request.Message))
                 {
-                    var stations = await _stationClient.GetStationsAsync(userToken);
-
-                    if (stations != null && stations.Any())
+                    try
                     {
-                        // Chuyển dữ liệu trạm sang dạng text để AI đọc
-                        var stationText = string.Join("\n", stations.Select(s =>
-                            $"- {s.Name} | {s.Address} | ID: {s.Id}"
-                        ));
+                        stations = await _stationClient.GetStationsAsync(userToken) ?? new List<StationResponseDto>();
 
-                        aiInput = $"Dưới đây là danh sách các trạm sạc:\n{stationText}\n\nNgười dùng hỏi: {request.Message}\nHãy trả lời tự nhiên nhất:";
+                        if (stations.Any())
+                        {
+                            string stationText = string.Join("\n", stations.Select(s =>
+                                $"- {s.Name} | {s.Address} | ID: {s.Id}"
+                            ));
+
+                            aiInput = $"Dưới đây là danh sách các trạm sạc:\n{stationText}\n\nNgười dùng hỏi: {request.Message}\nHãy trả lời tự nhiên nhất:";
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Không thể lấy danh sách trạm sạc.");
                     }
                 }
 
-                // Gọi AI
+                // Gọi Gemini API (có retry)
                 responseDto.Reply = await GetGeminiResponseAsync(aiInput);
 
-                // Nếu có trạm, set gợi ý
-                var firstStation = await _stationClient.GetStationsAsync(userToken);
-                if (firstStation != null && firstStation.Any())
+                // Nếu có danh sách trạm sạc, trả thêm gợi ý
+                if (stations.Any())
                 {
-                    responseDto.SuggestedStationId = firstStation.First().Id;
-                    responseDto.StationName = firstStation.First().Name;
-                    responseDto.Address = firstStation.First().Address;
-                    responseDto.Stations = firstStation.Select(s => new StationResponseDto
-                    {
-                        Id = s.Id,
-                        Name = s.Name,
-                        Address = s.Address,
-                        Latitude = s.Latitude,
-                        Longitude = s.Longitude
-                    }).ToList();
+                    var first = stations.First();
+                    responseDto.SuggestedStationId = first.Id;
+                    responseDto.StationName = first.Name;
+                    responseDto.Address = first.Address;
+                    responseDto.Stations = stations;
                 }
 
-                // Lưu chat
+                // Lưu lịch sử chat
                 await _chatRepo.AddChatAsync(new ChatHistory
                 {
                     UserId = request.UserId,
                     UserMessage = request.Message,
-                    AiResponse = responseDto.Reply
+                    AiResponse = responseDto.Reply,
+                    CreatedAt = DateTime.UtcNow
                 });
 
                 return responseDto;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error in AskGeminiAsync");
-                responseDto.Reply = "❌ Có lỗi xảy ra khi xử lý yêu cầu";
+                _logger.LogError(ex, "🔥 Error in AskGeminiAsync - Message: {Message}", request.Message);
+                responseDto.Reply = "⚠️ Xin lỗi, hiện tại hệ thống AI đang bận hoặc quá tải. Vui lòng thử lại sau nhé!";
                 return responseDto;
             }
         }
-
 
         #region Helpers
 
         private bool IsStationQuery(string message)
         {
+            if (string.IsNullOrWhiteSpace(message)) return false;
+
             message = message.ToLower();
             return message.Contains("trạm sạc")
                 || message.Contains("station")
@@ -105,74 +107,75 @@ namespace AIService.Services
                 || message.Contains("trạm");
         }
 
-        private async Task AttachStationInfoAsync(AiResponseDto responseDto, string userToken, string userMessage)
-        {
-            var stations = await _stationClient.GetStationsAsync(userToken);
-
-            if (stations != null && stations.Any())
-            {
-                // Lọc theo từ khóa người dùng
-                var keyword = userMessage.ToLower();
-                var matchedStations = stations
-                    .Where(s => s.Name.ToLower().Contains(keyword) || s.Address.ToLower().Contains(keyword))
-                    .ToList();
-
-                if (!matchedStations.Any())
-                {
-                    responseDto.Reply = "Không tìm thấy trạm sạc nào phù hợp với yêu cầu của bạn.";
-                    return;
-                }
-
-                // Gán danh sách trạm trả về JSON
-                responseDto.Stations = matchedStations.Select(s => new StationResponseDto
-                {
-                    Id = s.Id,
-                    Name = s.Name,
-                    Address = s.Address,
-                    Latitude = s.Latitude,
-                    Longitude = s.Longitude
-                }).ToList();
-
-                // Trạm đầu tiên làm gợi ý
-                var firstStation = matchedStations.First();
-                responseDto.SuggestedStationId = firstStation.Id;
-                responseDto.StationName = firstStation.Name;
-                responseDto.Address = firstStation.Address;
-
-                responseDto.Reply = $"Mình tìm thấy {matchedStations.Count} trạm sạc phù hợp với yêu cầu của bạn:";
-            }
-            else
-            {
-                responseDto.Reply = "Không tìm thấy trạm sạc nào trong hệ thống.";
-            }
-        }
-
         private async Task<string> GetGeminiResponseAsync(string userMessage)
         {
             var payload = new
             {
                 model = "models/gemini-2.5-flash",
-                contents = new[] { new { parts = new[] { new { text = userMessage } } } }
+                contents = new[]
+                {
+                    new { parts = new[] { new { text = userMessage } } }
+                }
             };
 
-            var request = new HttpRequestMessage(HttpMethod.Post,
-                "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent")
+            const int maxRetries = 3;
+            const int baseDelayMs = 2000;
+
+            for (int attempt = 1; attempt <= maxRetries; attempt++)
             {
-                Content = JsonContent.Create(payload)
-            };
-            request.Headers.Add("X-Goog-Api-Key", _apiKey);
+                try
+                {
+                    var request = new HttpRequestMessage(
+                        HttpMethod.Post,
+                        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
+                    )
+                    {
+                        Content = JsonContent.Create(payload)
+                    };
+                    request.Headers.Add("X-Goog-Api-Key", _apiKey);
 
-            var response = await _httpClient.SendAsync(request);
-            response.EnsureSuccessStatusCode();
+                    var response = await _httpClient.SendAsync(request);
+                    if (response.IsSuccessStatusCode)
+                    {
+                        var content = await response.Content.ReadAsStringAsync();
+                        return ParseGeminiResponse(content);
+                    }
 
-            var content = await response.Content.ReadAsStringAsync();
-            using var doc = JsonDocument.Parse(content);
+                    // Retry khi lỗi tạm thời
+                    if (response.StatusCode == System.Net.HttpStatusCode.ServiceUnavailable ||
+                        response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+                    {
+                        int delay = baseDelayMs * attempt;
+                        _logger.LogWarning("⚠️ Gemini API quá tải (HTTP {StatusCode}). Thử lại lần {Attempt} sau {Delay}ms.",
+                            response.StatusCode, attempt, delay);
+                        await Task.Delay(delay);
+                        continue;
+                    }
 
-            var candidates = doc.RootElement.GetProperty("candidates");
-            if (candidates.GetArrayLength() > 0)
+                    response.EnsureSuccessStatusCode();
+                }
+                catch (HttpRequestException ex)
+                {
+                    _logger.LogWarning(ex, "Lỗi mạng khi gọi Gemini API (attempt {Attempt}/{Max})", attempt, maxRetries);
+                    if (attempt == maxRetries)
+                        throw;
+
+                    await Task.Delay(baseDelayMs * attempt);
+                }
+            }
+
+            return "Hiện tại AI đang bận, hãy thử lại sau ít phút nhé.";
+        }
+
+        private string ParseGeminiResponse(string json)
+        {
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+
+            if (root.TryGetProperty("candidates", out var candidates) && candidates.GetArrayLength() > 0)
             {
-                var parts = candidates[0].GetProperty("content").GetProperty("parts");
-                if (parts.GetArrayLength() > 0)
+                var content = candidates[0].GetProperty("content");
+                if (content.TryGetProperty("parts", out var parts) && parts.GetArrayLength() > 0)
                 {
                     return parts[0].GetProperty("text").GetString() ?? "No response from AI";
                 }
@@ -183,7 +186,7 @@ namespace AIService.Services
 
         #endregion
 
-        #region Chat History Methods
+        #region Chat History
 
         public async Task DeleteUserChatHistoryAsync(string userId)
             => await _chatRepo.DeleteUserChatsAsync(userId);
@@ -198,9 +201,7 @@ namespace AIService.Services
         }
 
         public async Task<List<ChatHistory>> GetAllUserChatsAsync(string userId)
-        {
-            return await _chatRepo.GetUserChatsAsync(userId);
-        }
+            => await _chatRepo.GetUserChatsAsync(userId);
 
         #endregion
     }
